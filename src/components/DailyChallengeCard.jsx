@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, CheckCircle, Clock, Sparkles, BookOpen, Award } from 'lucide-react';
+import { ExternalLink, CheckCircle, Clock, Sparkles, BookOpen } from 'lucide-react';
 
 export default function DailyChallengeCard({ 
   dailyTask, 
@@ -17,7 +17,7 @@ export default function DailyChallengeCard({
       
       const diff = endOfDay - now;
       if (diff <= 0) {
-        setTimeLeft('Contest Day Ended (Penalty Check Pending)');
+        setTimeLeft('Deadline Passed! (Penalty Check Pending)');
         return;
       }
       
@@ -38,13 +38,13 @@ export default function DailyChallengeCard({
   const completionPercentage = totalCount > 0 ? Math.round((solvedCount / totalCount) * 100) : 0;
 
   return (
-    <div className="daily-challenge-card codechef-arena-card">
+    <div className="daily-challenge-card modern-challenge-card">
       <div className="card-banner">
-        <div className="banner-badge codechef-banner-badge">
-          <Sparkles size={14} />
-          <span>CodeChef Contest Arena — Daily Challenge</span>
+        <div className="banner-badge">
+          <Sparkles size={15} />
+          <span>Today's Daily Target</span>
         </div>
-        <div className="deadline-timer codechef-timer">
+        <div className="deadline-timer">
           <Clock size={14} />
           <span>Submission Deadline: <strong>{timeLeft}</strong></span>
         </div>
@@ -53,20 +53,15 @@ export default function DailyChallengeCard({
       <div className="card-main">
         <div className="problem-meta">
           <div className="tags-row">
-            <span className="codechef-code-tag">
-              Code: <strong>{dailyTask.codechefCode || dailyTask.titleSlug.toUpperCase()}</strong>
-            </span>
-            <span className="codechef-rating-tag">
-              <Award size={12} /> Rating: {dailyTask.estimatedRating || 1200}
-            </span>
             <span className={`difficulty-badge badge-${dailyTask.difficulty?.toLowerCase()}`}>
               {dailyTask.difficulty}
             </span>
             <span className="category-pill">{dailyTask.category}</span>
+            <span className="sheet-pill">{dailyTask.sheet}</span>
           </div>
 
-          <h2 className="problem-title codechef-problem-title">{dailyTask.title}</h2>
-          <p className="problem-slug">Problem Slug: <code>{dailyTask.titleSlug}</code> | Source: <strong>{dailyTask.sheet}</strong></p>
+          <h2 className="problem-title">{dailyTask.title}</h2>
+          <p className="problem-slug">Problem Slug: <code>{dailyTask.titleSlug}</code></p>
         </div>
 
         <div className="problem-actions">
@@ -76,7 +71,7 @@ export default function DailyChallengeCard({
             rel="noopener noreferrer" 
             className="btn btn-leetcode"
           >
-            <span>Submit Solution on LeetCode</span>
+            <span>Solve on LeetCode</span>
             <ExternalLink size={16} />
           </a>
 
@@ -87,12 +82,12 @@ export default function DailyChallengeCard({
               rel="noopener noreferrer" 
               className="btn btn-outline"
             >
-              <span>Editorial / Solution</span>
+              <span>Solution Guide</span>
               <BookOpen size={16} />
             </a>
           )}
 
-          <button className="btn btn-codechef-secondary" onClick={onOpenSheetBrowser}>
+          <button className="btn btn-secondary" onClick={onOpenSheetBrowser}>
             Change Problem
           </button>
         </div>
@@ -106,15 +101,15 @@ export default function DailyChallengeCard({
           </div>
           <div className="progress-bar-bg">
             <div 
-              className="progress-bar-fill codechef-bar-fill" 
+              className="progress-bar-fill" 
               style={{ width: `${completionPercentage}%` }}
             ></div>
           </div>
         </div>
 
-        <button className="btn btn-codechef-gold btn-sm" onClick={onVerifyAll}>
+        <button className="btn btn-primary btn-sm" onClick={onVerifyAll}>
           <CheckCircle size={15} />
-          <span>Auto-Verify All Submissions</span>
+          <span>Auto-Verify All Members</span>
         </button>
       </div>
     </div>

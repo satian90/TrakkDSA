@@ -1,42 +1,39 @@
-/* CodeChef Inspired Design Tokens & Palette */
+/* Ultra-Modern Light Mode Design Tokens (Linear/Vercel Inspired) */
 :root {
-  --codechef-bg: #16181b;
-  --codechef-card: #202428;
-  --codechef-card-hover: #292d33;
-  --codechef-input: #111316;
-  --codechef-border: #323740;
+  --bg-canvas: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-focus: #6366f1;
   
-  --codechef-gold: #ffb300;
-  --codechef-gold-hover: #ffa000;
-  --codechef-gold-glow: rgba(255, 179, 0, 0.2);
+  --accent-primary: #6366f1;       /* Indigo */
+  --accent-primary-hover: #4f46e5;
+  --accent-light: #eeeffe;
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
 
-  --text-main: #f8f9fa;
-  --text-muted: #9ea7b4;
-  --text-dim: #6c757d;
-
-  --color-green: #28a745;
-  --color-orange: #fd7e14;
-  --color-pink: #e83e8c;
-  --color-blue: #007bff;
-
-  /* CodeChef Star Rating Colors */
-  --star-1: #6c757d; /* Grey */
-  --star-2: #1e7e34; /* Green */
-  --star-3: #337ab7; /* Blue */
-  --star-4: #aa3bff; /* Purple */
-  --star-5: #ffc107; /* Yellow / Gold */
-  --star-6: #ff8c00; /* Orange */
-  --star-7: #d9534f; /* Red */
+  --color-emerald: #10b981;
+  --color-emerald-light: #ecfdf5;
+  --color-orange: #f97316;
+  --color-orange-light: #fff7ed;
+  --color-pink: #f43f5e;
+  --color-pink-light: #fff1f2;
+  --color-sky: #0284c7;
+  --color-sky-light: #f0f9ff;
 
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
   
-  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
-  --shadow-gold: 0 0 20px rgba(255, 179, 0, 0.3);
+  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(16, 24, 40, 0.1), 0 1px 2px 0 rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(16, 24, 40, 0.08), 0 2px 6px -1px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 32px -4px rgba(16, 24, 40, 0.12), 0 4px 12px -2px rgba(16, 24, 40, 0.06);
 }
 
 * {
@@ -46,7 +43,7 @@
 }
 
 body {
-  background-color: var(--codechef-bg);
+  background-color: var(--bg-canvas);
   color: var(--text-main);
   font-family: var(--font-sans);
   min-height: 100vh;
@@ -54,18 +51,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbars */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--codechef-bg);
+  background: var(--bg-canvas);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--codechef-border);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--codechef-gold);
+  background: var(--accent-primary);
 }
