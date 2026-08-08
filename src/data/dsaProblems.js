@@ -187,66 +187,7 @@ export const STRIVER_AZ_SHEET = [
   }
 ];
 
-export const INITIAL_MEMBERS = [
-  {
-    id: "mem-1",
-    name: "Aarav Sharma",
-    gmail: "aarav.sharma@gmail.com",
-    leetcodeUsername: "aarav_coder",
-    verifiedBio: true,
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=aarav",
-    color: "#ffb300",
-    initialDeposit: 500,
-    depositBalance: 450,
-    currentStreak: 5,
-    totalPoints: 120,
-    solvedCount: 12,
-    penaltiesPaid: 50,
-    history: {
-      "2026-08-06": { solved: true, titleSlug: "two-sum", verifiedAt: "2026-08-06T14:22:00Z" },
-      "2026-08-05": { solved: true, titleSlug: "valid-anagram", verifiedAt: "2026-08-05T18:10:00Z" },
-      "2026-08-04": { solved: false, penaltyApplied: true, penaltyAmount: 50 }
-    }
-  },
-  {
-    id: "mem-2",
-    name: "Priya Patel",
-    gmail: "priya.dev@gmail.com",
-    leetcodeUsername: "priya_dev",
-    verifiedBio: true,
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=priya",
-    color: "#ec4899",
-    initialDeposit: 500,
-    depositBalance: 500,
-    currentStreak: 9,
-    totalPoints: 190,
-    solvedCount: 19,
-    penaltiesPaid: 0,
-    history: {
-      "2026-08-06": { solved: true, titleSlug: "two-sum", verifiedAt: "2026-08-06T09:15:00Z" },
-      "2026-08-05": { solved: true, titleSlug: "valid-anagram", verifiedAt: "2026-08-05T11:40:00Z" }
-    }
-  },
-  {
-    id: "mem-3",
-    name: "Rohan Verma",
-    gmail: "rohan.v@gmail.com",
-    leetcodeUsername: "rohan_v",
-    verifiedBio: true,
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=rohan",
-    color: "#3b82f6",
-    initialDeposit: 500,
-    depositBalance: 350,
-    currentStreak: 0,
-    totalPoints: 70,
-    solvedCount: 7,
-    penaltiesPaid: 150,
-    history: {
-      "2026-08-06": { solved: false, penaltyApplied: false },
-      "2026-08-05": { solved: false, penaltyApplied: true, penaltyAmount: 50 }
-    }
-  }
-];
+export const INITIAL_MEMBERS = [];
 
 export const DEFAULT_DAILY_TASK = {
   id: "nc-3",

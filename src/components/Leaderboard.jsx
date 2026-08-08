@@ -10,7 +10,9 @@ export default function Leaderboard({
   onVerifyMember, 
   onToggleManualSolved,
   onApplyPenalty,
-  onSelectMember
+  onSelectMember,
+  userRole,
+  currentUser
 }) {
   const [activeTab, setActiveTab] = useState('leaderboard'); // 'leaderboard' | 'stakes'
   const [loadingId, setLoadingId] = useState(null);
@@ -62,122 +64,153 @@ export default function Leaderboard({
               <tr>
                 <th>Rank</th>
                 <th>Member</th>
-                <th>LeetCode Handle</th>
+                <th>Handle / Profile</th>
                 <th>Streak</th>
                 <th>Score</th>
                 <th>Status ({currentDate})</th>
-                <th>Actions</th>
+                {userRole === 'admin' && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {sortedMembers.map((member, index) => {
-                const dayLog = member.history[currentDate] || {};
-                const isSolved = dayLog.solved;
-                const isFined = dayLog.penaltyApplied;
-                const isLoading = loadingId === member.id;
+              {sortedMembers.length === 0 ? (
+                <tr>
+                  <td colSpan={userRole === 'admin' ? "7" : "6"} style={{ textAlign: 'center', padding: '48px 24px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>No members tracked yet</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Create an account to start tracking!</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                sortedMembers.map((member, index) => {
+                  const dayLog = member.history[currentDate] || {};
+                  const isSolved = dayLog.solved;
+                  const isFined = dayLog.penaltyApplied;
+                  const isLoading = loadingId === member.id;
+                  const isSelf = currentUser && currentUser.id === member.id;
 
-                return (
-                  <tr key={member.id} className={isSolved ? 'row-completed' : ''}>
-                    <td>{getRankBadge(index)}</td>
+                  return (
+                    <tr 
+                      key={member.id} 
+                      className={isSolved ? 'row-completed' : ''}
+                      style={isSelf ? { background: 'rgba(16, 185, 129, 0.14)', borderLeft: '4px solid #10b981' } : {}}
+                    >
+                      <td>{getRankBadge(index)}</td>
 
-                    <td>
-                      <div className="user-profile-cell" onClick={() => onSelectMember(member)}>
-                        <img 
-                          src={member.avatar} 
-                          alt={member.name} 
-                          className="user-avatar"
-                          style={{ borderColor: member.color || '#6366f1' }}
-                        />
-                        <div className="user-name-info">
-                          <div className="name-with-verified">
-                            <span className="user-name">{member.name}</span>
-                            {member.verifiedBio && (
-                              <span className="verified-badge-pill" title={`Verified Gmail: ${member.gmail}`}>
-                                <ShieldCheck size={12} /> Verified
+                      <td>
+                        <div className="user-profile-cell" onClick={() => onSelectMember(member)}>
+                          <img 
+                            src={member.avatar} 
+                            alt={member.name} 
+                            className="user-avatar"
+                            style={{ borderColor: member.color || '#6366f1' }}
+                          />
+                          <div className="user-name-info">
+                            <div className="name-with-verified">
+                              <span className="user-name" style={isSelf ? { fontWeight: '800', color: 'var(--text-main)' } : {}}>
+                                {member.name} {isSelf && " (You)"}
                               </span>
+                              {member.verifiedBio && (
+                                <span className="verified-badge-pill" title={`Verified Gmail: ${member.gmail}`}>
+                                  <ShieldCheck size={12} /> Verified
+                                </span>
+                              )}
+                            </div>
+                            <span className="user-solved-count">{member.solvedCount || 0} total solved</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <a 
+                          href={member.platform === 'Codeforces' ? `https://codeforces.com/profile/${member.leetcodeUsername}` : `https://leetcode.com/${member.leetcodeUsername}/`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="leetcode-handle-link"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <span style={{ 
+                            fontSize: '0.7rem', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            background: member.platform === 'Codeforces' ? '#fee2e2' : '#fef3c7', 
+                            color: member.platform === 'Codeforces' ? '#ef4444' : '#d97706', 
+                            fontWeight: '800' 
+                          }}>
+                            {member.platform === 'Codeforces' ? 'CF' : 'LC'}
+                          </span>
+                          @{member.leetcodeUsername} <ExternalLink size={11} />
+                        </a>
+                      </td>
+
+                      <td>
+                        <div className="streak-badge">
+                          <Flame size={16} className={member.currentStreak > 0 ? "flame-active" : "flame-inactive"} />
+                          <span>{member.currentStreak} days</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="points-pill">
+                          <span>{member.totalPoints} pts</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        {isSolved ? (
+                          <div className="status-badge status-solved">
+                            <CheckCircle2 size={15} />
+                            <span>Solved</span>
+                          </div>
+                        ) : isFined ? (
+                          <div className="status-badge status-fined">
+                            <ShieldAlert size={15} />
+                            <span>Fined (₹{dayLog.penaltyAmount || 50})</span>
+                          </div>
+                        ) : (
+                          <div className="status-badge status-pending">
+                            <Clock size={15} />
+                            <span>Pending</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {userRole === 'admin' && (
+                        <td>
+                          <div className="action-buttons-group">
+                            <button 
+                              className="btn btn-icon btn-secondary" 
+                              onClick={() => handleVerifyClick(member)}
+                              disabled={isLoading}
+                              title="Auto-Verify via API"
+                            >
+                              <RefreshCw size={14} className={isLoading ? "spin" : ""} />
+                            </button>
+
+                            <button 
+                              className={`btn btn-xs ${isSolved ? 'btn-outline' : 'btn-primary'}`}
+                              onClick={() => onToggleManualSolved(member)}
+                            >
+                              {isSolved ? 'Undo' : 'Mark Solved'}
+                            </button>
+
+                            {!isSolved && !isFined && (
+                              <button 
+                                className="btn btn-xs btn-danger"
+                                onClick={() => onApplyPenalty(member)}
+                                title="Deduct ₹50 fine from member's security deposit"
+                              >
+                                Apply Fine
+                              </button>
                             )}
                           </div>
-                          <span className="user-solved-count">{member.solvedCount || 0} total solved</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <a 
-                        href={`https://leetcode.com/${member.leetcodeUsername}/`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="leetcode-handle-link"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        @{member.leetcodeUsername} <ExternalLink size={11} />
-                      </a>
-                    </td>
-
-                    <td>
-                      <div className="streak-badge">
-                        <Flame size={16} className={member.currentStreak > 0 ? "flame-active" : "flame-inactive"} />
-                        <span>{member.currentStreak} days</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="points-pill">
-                        <span>{member.totalPoints} pts</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      {isSolved ? (
-                        <div className="status-badge status-solved">
-                          <CheckCircle2 size={15} />
-                          <span>Solved</span>
-                        </div>
-                      ) : isFined ? (
-                        <div className="status-badge status-fined">
-                          <ShieldAlert size={15} />
-                          <span>Fined (₹{dayLog.penaltyAmount || 50})</span>
-                        </div>
-                      ) : (
-                        <div className="status-badge status-pending">
-                          <Clock size={15} />
-                          <span>Pending</span>
-                        </div>
+                        </td>
                       )}
-                    </td>
-
-                    <td>
-                      <div className="action-buttons-group">
-                        <button 
-                          className="btn btn-icon btn-secondary" 
-                          onClick={() => handleVerifyClick(member)}
-                          disabled={isLoading}
-                          title="Auto-Verify via LeetCode API"
-                        >
-                          <RefreshCw size={14} className={isLoading ? "spin" : ""} />
-                        </button>
-
-                        <button 
-                          className={`btn btn-xs ${isSolved ? 'btn-outline' : 'btn-primary'}`}
-                          onClick={() => onToggleManualSolved(member)}
-                        >
-                          {isSolved ? 'Undo' : 'Mark Solved'}
-                        </button>
-
-                        {!isSolved && !isFined && (
-                          <button 
-                            className="btn btn-xs btn-danger"
-                            onClick={() => onApplyPenalty(member)}
-                            title="Deduct ₹50 fine from member's security deposit"
-                          >
-                            Apply Fine
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -195,46 +228,64 @@ export default function Leaderboard({
               </tr>
             </thead>
             <tbody>
-              {sortedMembers.map((member) => {
-                const depositHealth = Math.round((member.depositBalance / member.initialDeposit) * 100);
-                return (
-                  <tr key={member.id}>
-                    <td>
-                      <div className="user-profile-cell">
-                        <img src={member.avatar} alt={member.name} className="user-avatar" />
-                        <span className="user-name">{member.name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="text-muted font-monospace">{member.gmail || "verified@gmail.com"}</span>
-                    </td>
-                    <td>₹{member.initialDeposit}</td>
-                    <td>
-                      <div className="balance-cell">
-                        <strong className={depositHealth < 50 ? 'text-pink' : 'text-green'}>
-                          ₹{member.depositBalance}
-                        </strong>
-                        <div className="mini-progress-bar">
-                          <div 
-                            className={`mini-progress-fill ${depositHealth < 50 ? 'bg-pink' : 'bg-green'}`} 
-                            style={{ width: `${depositHealth}%` }}
-                          ></div>
+              {sortedMembers.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>No stakes or deposits recorded</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Add members to see their security deposit and penalty history.</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                sortedMembers.map((member) => {
+                  const depositHealth = Math.round((member.depositBalance / member.initialDeposit) * 100);
+                  const isSelf = currentUser && currentUser.id === member.id;
+
+                  return (
+                    <tr 
+                      key={member.id}
+                      style={isSelf ? { background: '#f0fdf4', borderLeft: '4px solid #10b981' } : {}}
+                    >
+                      <td>
+                        <div className="user-profile-cell">
+                          <img src={member.avatar} alt={member.name} className="user-avatar" />
+                          <span className="user-name" style={isSelf ? { fontWeight: '800', color: 'var(--text-main)' } : {}}>
+                            {member.name} {isSelf && " (You)"}
+                          </span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="text-pink fw-bold">₹{member.penaltiesPaid}</td>
-                    <td>
-                      {member.depositBalance <= 0 ? (
-                        <span className="status-badge status-fined">Deposit Exhausted ❌</span>
-                      ) : depositHealth < 40 ? (
-                        <span className="status-badge status-warning">Low Balance ⚠️</span>
-                      ) : (
-                        <span className="status-badge status-solved">Active Stake ✅</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td>
+                        <span className="text-muted font-monospace">{member.gmail || "verified@gmail.com"}</span>
+                      </td>
+                      <td>₹{member.initialDeposit}</td>
+                      <td>
+                        <div className="balance-cell">
+                          <strong className={depositHealth < 50 ? 'text-pink' : 'text-green'}>
+                            ₹{member.depositBalance}
+                          </strong>
+                          <div className="mini-progress-bar">
+                            <div 
+                              className={`mini-progress-fill ${depositHealth < 50 ? 'bg-pink' : 'bg-green'}`} 
+                              style={{ width: `${depositHealth}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-pink fw-bold">₹{member.penaltiesPaid}</td>
+                      <td>
+                        {member.depositBalance <= 0 ? (
+                          <span className="status-badge status-fined">Deposit Exhausted ❌</span>
+                        ) : depositHealth < 40 ? (
+                          <span className="status-badge status-warning">Low Balance ⚠️</span>
+                        ) : (
+                          <span className="status-badge status-solved">Active Stake ✅</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

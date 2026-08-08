@@ -5,7 +5,9 @@ export default function DailyChallengeCard({
   dailyTask, 
   onOpenSheetBrowser,
   members,
-  onVerifyAll
+  onVerifyAll,
+  onVerifySelf,
+  userRole
 }) {
   const [timeLeft, setTimeLeft] = useState('');
 
@@ -52,7 +54,10 @@ export default function DailyChallengeCard({
 
       <div className="card-main">
         <div className="problem-meta">
-          <div className="tags-row">
+          <div className="tags-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="platform-pill" style={{ background: dailyTask.platform === 'Codeforces' ? '#fee2e2' : '#fef3c7', color: dailyTask.platform === 'Codeforces' ? '#ef4444' : '#d97706', fontWeight: '700', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+              {dailyTask.platform || 'LeetCode'}
+            </span>
             <span className={`difficulty-badge badge-${dailyTask.difficulty?.toLowerCase()}`}>
               {dailyTask.difficulty}
             </span>
@@ -61,21 +66,28 @@ export default function DailyChallengeCard({
           </div>
 
           <h2 className="problem-title">{dailyTask.title}</h2>
-          <p className="problem-slug">Problem Slug: <code>{dailyTask.titleSlug}</code></p>
+          <p className="problem-slug">Problem ID/Slug: <code>{dailyTask.titleSlug}</code></p>
         </div>
 
         <div className="problem-actions">
-          <a 
-            href={dailyTask.leetcodeUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="btn btn-leetcode"
-          >
-            <span>Solve on LeetCode</span>
-            <ExternalLink size={16} />
-          </a>
+          {userRole !== 'admin' && (
+            <a 
+              href={dailyTask.leetcodeUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="btn"
+              style={{ 
+                background: dailyTask.platform === 'Codeforces' ? '#ef4444' : '#ffa116', 
+                color: dailyTask.platform === 'Codeforces' ? '#ffffff' : '#000000', 
+                fontWeight: '700' 
+              }}
+            >
+              <span>Solve on {dailyTask.platform || 'LeetCode'}</span>
+              <ExternalLink size={16} />
+            </a>
+          )}
 
-          {dailyTask.solutionUrl && (
+          {userRole !== 'admin' && dailyTask.solutionUrl && (
             <a 
               href={dailyTask.solutionUrl} 
               target="_blank" 
@@ -87,9 +99,11 @@ export default function DailyChallengeCard({
             </a>
           )}
 
-          <button className="btn btn-secondary" onClick={onOpenSheetBrowser}>
-            Change Problem
-          </button>
+          {userRole === 'admin' && (
+            <button className="btn btn-secondary" onClick={onOpenSheetBrowser}>
+              Change Problem
+            </button>
+          )}
         </div>
       </div>
 
@@ -107,10 +121,31 @@ export default function DailyChallengeCard({
           </div>
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={onVerifyAll}>
-          <CheckCircle size={15} />
-          <span>Auto-Verify All Members</span>
-        </button>
+        {userRole === 'admin' ? (
+          <button className="btn btn-primary btn-sm" onClick={onVerifyAll}>
+            <CheckCircle size={15} />
+            <span>Auto-Verify All Members</span>
+          </button>
+        ) : userRole === 'member' ? (
+          <button 
+            className="btn btn-primary btn-sm" 
+            onClick={onVerifySelf}
+            style={{ background: 'var(--accent-primary)', color: '#ffffff' }}
+          >
+            <CheckCircle size={15} />
+            <span>Verify My Submission</span>
+          </button>
+        ) : (
+          <button 
+            className="btn btn-secondary btn-sm" 
+            disabled 
+            style={{ opacity: '0.6', cursor: 'not-allowed' }}
+            title="Log in to verify your daily target submission"
+          >
+            <CheckCircle size={15} />
+            <span>Login to Verify Submission</span>
+          </button>
+        )}
       </div>
     </div>
   );

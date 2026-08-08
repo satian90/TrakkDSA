@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Coins, UserPlus, BookOpen, Flame, ShieldAlert } from 'lucide-react';
+import { Trophy, Coins, UserPlus, BookOpen, Flame, ShieldAlert, LogOut, Shield, User } from 'lucide-react';
 
 export default function Header({ 
   groupPot, 
@@ -7,7 +7,10 @@ export default function Header({
   onOpenSheetBrowser, 
   onOpenPenaltyModal,
   currentDate,
-  onDateChange 
+  onDateChange,
+  userRole,
+  loggedInMember,
+  onLogout
 }) {
   return (
     <header className="app-header modern-header">
@@ -17,10 +20,21 @@ export default function Header({
             <Trophy size={22} className="logo-svg" />
           </div>
           <div>
-            <h1 className="brand-title">
-              CodeStake <span className="brand-badge">DSA Tracker</span>
+            <h1 className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              CodeStake 
+              <span className="brand-badge">DSA Tracker</span>
+              {userRole === 'admin' && (
+                <span className="brand-badge" style={{ background: '#0f172a', border: '1px solid #334155' }}>
+                  <Shield size={12} style={{ marginRight: '4px', display: 'inline' }} /> Admin Mode
+                </span>
+              )}
+              {userRole === 'member' && (
+                <span className="brand-badge" style={{ background: 'var(--accent-primary)' }}>
+                  <User size={12} style={{ marginRight: '4px', display: 'inline' }} /> {loggedInMember ? `@${loggedInMember.leetcodeUsername}` : 'Member Mode'}
+                </span>
+              )}
             </h1>
-            <p className="brand-subtitle">Automated LeetCode Verification & Stake Penalty Pool</p>
+            <p className="brand-subtitle">Automated LeetCode & Codeforces Verification & Stake Pool</p>
           </div>
         </div>
 
@@ -33,14 +47,24 @@ export default function Header({
             </div>
           </div>
 
-          <button className="btn btn-secondary" onClick={onOpenSheetBrowser}>
-            <BookOpen size={16} />
-            <span>Problem Sheets</span>
-          </button>
 
-          <button className="btn btn-primary" onClick={onOpenAddMember}>
-            <UserPlus size={16} />
-            <span>Add Member</span>
+
+          {userRole === 'admin' && (
+            <>
+              <button className="btn btn-secondary" onClick={onOpenSheetBrowser}>
+                <BookOpen size={16} />
+                <span>Problem Sheets</span>
+              </button>
+              <button className="btn btn-primary" onClick={onOpenAddMember}>
+                <UserPlus size={16} />
+                <span>Add Member</span>
+              </button>
+            </>
+          )}
+
+          <button className="btn btn-secondary" onClick={onLogout} title="Exit to Landing Screen" style={{ color: '#e11d48', borderColor: 'var(--border-subtle)' }}>
+            <LogOut size={16} />
+            <span>{userRole === 'guest' ? 'Exit View' : 'Logout'}</span>
           </button>
         </div>
       </div>

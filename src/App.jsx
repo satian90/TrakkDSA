@@ -1,161 +1,331 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import DailyChallengeCard from './components/DailyChallengeCard';
 import Leaderboard from './components/Leaderboard';
 import PenaltyPoolCard from './components/PenaltyPoolCard';
 import ProblemSheetBrowser from './components/ProblemSheetBrowser';
-import MemberManagementModal from './components/MemberManagementModal';
 import UserDetailModal from './components/UserDetailModal';
+import Footer from './components/Footer';
+import AdminLoginModal from './components/AdminLoginModal';
 
-import { INITIAL_MEMBERS, DEFAULT_DAILY_TASK } from './data/dsaProblems';
-import { verifyDailySubmission } from './services/leetcodeService';
-import { Sparkles, CheckCircle, ShieldAlert, AlertCircle } from 'lucide-react';
+import { verifyDailySubmission, verifyPlatformProfile } from './services/platformService';
+import { fetchMembers, insertMember, updateMember, upsertSubmission, fetchDailyTask, updateDailyTask, fetchMemberByAuthUid } from './services/dbService';
+import { signUpMember, signIn, signOut, getSession, onAuthStateChange, isAdmin as checkIsAdmin, buildEmailFromUsername } from './services/authService';
+import { Sparkles, CheckCircle, ShieldAlert, AlertCircle, ArrowRight, UserCheck, Users, Key, Loader2, X } from 'lucide-react';
 import './App.css';
 
 function App() {
-  // Local storage state initialization
-  const [members, setMembers] = useState(() => {
-    const saved = localStorage.getItem('codestake_members');
-    return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
+  // Theme state: default to 'dark' or stored preference
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('codestake_theme') || 'dark';
   });
 
-  const [dailyTask, setDailyTask] = useState(() => {
-    const saved = localStorage.getItem('codestake_daily_task');
-    return saved ? JSON.parse(saved) : DEFAULT_DAILY_TASK;
-  });
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('codestake_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Views and role states — start with null, session check will populate
+  const [currentView, setCurrentView] = useState('landing');
+  const [userRole, setUserRole] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [_authUser, setAuthUser] = useState(null); // Supabase Auth user object
+
+  // Database-backed state
+  const [members, setMembers] = useState([]);
+  const [dailyTask, setDailyTask] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [currentDate, setCurrentDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
 
-  // Calculate group pot dynamically from total penalties paid
-  const groupPot = members.reduce((sum, m) => sum + (m.penaltiesPaid || 0), 0);
-
   // Modals state
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isSheetBrowserOpen, setIsSheetBrowserOpen] = useState(false);
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [selectedMemberDetail, setSelectedMemberDetail] = useState(null);
 
   // Notification Toast state
   const [toast, setToast] = useState(null);
 
-  // Persist members to localStorage
-  useEffect(() => {
-    localStorage.setItem('codestake_members', JSON.stringify(members));
-  }, [members]);
+  // Sign up Form states
+  const [signupUsername, setSignupUsername] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupDeposit, setSignupDeposit] = useState(500);
+  const [isVerifyingSignup, setIsVerifyingSignup] = useState(false);
+  const [signupError, setSignupError] = useState('');
 
-  // Persist daily task to localStorage
+  // Member Login Form states
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // Admin Login state
+  const [adminLoginError, setAdminLoginError] = useState('');
+
+  // Typewriter animation state for landing hero
+  const [stakeDisplay, setStakeDisplay] = useState('');
+
+  // Filter out any admin accounts from competing members list (admins are moderators/organizers only)
+  const competingMembers = members.filter(m => {
+    if (!m) return false;
+    const user = (m.leetcodeUsername || '').toLowerCase();
+    const mail = (m.gmail || '').toLowerCase();
+
+    const isAdminHandle = user === 'shivamkumarninety' || user === 'admin';
+    const isAdminMail = mail.includes('shivamkumarninety') || mail.startsWith('admin@');
+    const isAuthAdmin = _authUser && _authUser.id === m.authUid && checkIsAdmin(_authUser);
+
+    return !isAdminHandle && !isAdminMail && !isAuthAdmin;
+  });
+
+  // Sync current user details from members list
+  const loggedInMember = competingMembers.find(m => m.id === currentUser?.id) || null;
+
+  // Calculate group pot dynamically from total penalties paid by competing members
+  const groupPot = competingMembers.reduce((sum, m) => sum + (m.penaltiesPaid || 0), 0);
+
+  // Refresh all data from Supabase
+  const refreshData = useCallback(async () => {
+    const [membersData, taskData] = await Promise.all([
+      fetchMembers(),
+      fetchDailyTask()
+    ]);
+    setMembers(membersData);
+    setDailyTask(taskData);
+  }, []);
+
+  // Initial data load + Supabase Auth session check
   useEffect(() => {
-    localStorage.setItem('codestake_daily_task', JSON.stringify(dailyTask));
-  }, [dailyTask]);
+    const load = async () => {
+      setIsLoading(true);
+      await refreshData();
+
+      // Check for existing Supabase Auth session
+      const { session, user } = await getSession();
+      if (session && user) {
+        setAuthUser(user);
+        if (checkIsAdmin(user)) {
+          setUserRole('admin');
+          setCurrentView('dashboard');
+        } else {
+          // Look up member by auth UID
+          const member = await fetchMemberByAuthUid(user.id);
+          if (member) {
+            setCurrentUser(member);
+            setUserRole('member');
+            setCurrentView('dashboard');
+          }
+        }
+      }
+
+      setIsLoading(false);
+    };
+    load();
+  }, [refreshData]);
+
+  // Listen for Supabase Auth state changes (e.g. signed out)
+  useEffect(() => {
+    const subscription = onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setAuthUser(null);
+        setCurrentUser(null);
+        setUserRole(null);
+        setCurrentView('landing');
+        if (window.location.pathname !== '/') {
+          window.history.replaceState(null, '', '/');
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Scroll to top on view change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentView]);
+
+  // Synchronize browser URL bar (e.g. /, /signup, /dashboard, /admin)
+  // This runs once on mount to handle direct URL navigation
+  useEffect(() => {
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+
+    if (path === '/admin' || hash === '#admin') {
+      // Only open admin modal if not already logged in as admin
+      if (userRole !== 'admin') {
+        setIsAdminModalOpen(true);
+      }
+    } else if (path === '/signup' || hash === '#signup') {
+      setCurrentView('signup');
+    }
+    // /dashboard is handled by session check in the load effect above
+  }, [userRole]);
+
+  useEffect(() => {
+    let targetPath = '/';
+    if (isAdminModalOpen) {
+      targetPath = '/admin';
+    } else if (currentView === 'signup') {
+      targetPath = '/signup';
+    } else if (currentView === 'dashboard') {
+      targetPath = '/dashboard';
+    }
+
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  }, [currentView, isAdminModalOpen]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      if (path === '/admin') {
+        setIsAdminModalOpen(true);
+      } else if (path === '/signup') {
+        setIsAdminModalOpen(false);
+        setCurrentView('signup');
+      } else if (path === '/dashboard') {
+        setIsAdminModalOpen(false);
+        setCurrentView('dashboard');
+      } else {
+        setIsAdminModalOpen(false);
+        setCurrentView('landing');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Typewriter loop: type "stake" → hold 3s → delete → pause → repeat
+  useEffect(() => {
+    const WORD = 'stake';
+    let cancelled = false;
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+    const run = async () => {
+      while (!cancelled) {
+        for (let i = 1; i <= WORD.length; i++) {
+          if (cancelled) return;
+          setStakeDisplay(WORD.slice(0, i));
+          await sleep(110);
+        }
+        await sleep(3000);
+        for (let i = WORD.length - 1; i >= 0; i--) {
+          if (cancelled) return;
+          setStakeDisplay(WORD.slice(0, i));
+          await sleep(80);
+        }
+        await sleep(700);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Add new member
-  const handleAddMember = (newMember) => {
-    setMembers(prev => [...prev, newMember]);
-    showToast(`Added ${newMember.name} (@${newMember.leetcodeUsername}) to the tracker!`);
-  };
 
-  // Select new daily task from sheets
-  const handleSelectTask = (task) => {
+
+  // Select new daily task
+  const handleSelectTask = async (task) => {
     const updatedTask = {
       ...task,
       dateAssigned: currentDate,
       pointsValue: task.difficulty === 'Hard' ? 20 : task.difficulty === 'Medium' ? 15 : 10,
       penaltyAmount: 50
     };
-    setDailyTask(updatedTask);
-    showToast(`Updated today's task to '${task.title}'!`, 'info');
+    await updateDailyTask(updatedTask);
+    await refreshData();
+    showToast(`Updated today's task to '${task.title}' on ${task.platform}!`, 'info');
   };
 
-  // Toggle manual solved status for a member on current date
-  const handleToggleManualSolved = (member) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id !== member.id) return m;
+  // Toggle manual solved status for a member
+  const handleToggleManualSolved = async (member) => {
+    const dayLog = member.history[currentDate] || {};
+    const currentlySolved = !!dayLog.solved;
 
-      const dayLog = m.history[currentDate] || {};
-      const currentlySolved = !!dayLog.solved;
+    let newStreak = member.currentStreak;
+    let newPoints = member.totalPoints;
+    let newSolvedCount = member.solvedCount;
 
-      let newStreak = m.currentStreak;
-      let newPoints = m.totalPoints;
-      let newSolvedCount = m.solvedCount;
+    if (!currentlySolved) {
+      newStreak += 1;
+      newPoints += (dailyTask.pointsValue || 10);
+      newSolvedCount += 1;
+      showToast(`🎉 ${member.name} completed '${dailyTask.title}'! +${dailyTask.pointsValue || 10} pts`, 'success');
+    } else {
+      newStreak = Math.max(0, newStreak - 1);
+      newPoints = Math.max(0, newPoints - (dailyTask.pointsValue || 10));
+      newSolvedCount = Math.max(0, newSolvedCount - 1);
+      showToast(`Marked ${member.name} as pending.`, 'info');
+    }
 
-      if (!currentlySolved) {
-        // Mark as solved
-        newStreak += 1;
-        newPoints += (dailyTask.pointsValue || 10);
-        newSolvedCount += 1;
-        showToast(`🎉 ${m.name} completed '${dailyTask.title}'! +${dailyTask.pointsValue || 10} pts`, 'success');
-      } else {
-        // Undo solve
-        newStreak = Math.max(0, newStreak - 1);
-        newPoints = Math.max(0, newPoints - (dailyTask.pointsValue || 10));
-        newSolvedCount = Math.max(0, newSolvedCount - 1);
-        showToast(`Marked ${m.name} as pending.`, 'info');
-      }
+    // Update the member stats
+    await updateMember({
+      ...member,
+      currentStreak: newStreak,
+      totalPoints: newPoints,
+      solvedCount: newSolvedCount
+    });
 
-      return {
-        ...m,
-        currentStreak: newStreak,
-        totalPoints: newPoints,
-        solvedCount: newSolvedCount,
-        history: {
-          ...m.history,
-          [currentDate]: {
-            solved: !currentlySolved,
-            titleSlug: dailyTask.titleSlug,
-            verifiedAt: !currentlySolved ? new Date().toISOString() : null,
-            penaltyApplied: false
-          }
-        }
-      };
-    }));
+    // Upsert the submission record
+    await upsertSubmission(member.id, currentDate, {
+      solved: !currentlySolved,
+      titleSlug: dailyTask.titleSlug,
+      verifiedAt: !currentlySolved ? new Date().toISOString() : null,
+      penaltyApplied: false
+    });
+
+    await refreshData();
   };
 
-  // Apply ₹50 Miss Penalty to a member who failed to solve target
-  const handleApplyPenalty = (member) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id !== member.id) return m;
+  // Apply Miss Penalty
+  const handleApplyPenalty = async (member) => {
+    const fineAmount = dailyTask.penaltyAmount || 50;
+    const newDeposit = Math.max(0, member.depositBalance - fineAmount);
+    const newPenaltiesPaid = (member.penaltiesPaid || 0) + fineAmount;
 
-      const fineAmount = dailyTask.penaltyAmount || 50;
-      const newDeposit = Math.max(0, m.depositBalance - fineAmount);
-      const newPenaltiesPaid = (m.penaltiesPaid || 0) + fineAmount;
+    showToast(`🔻 Applied ₹${fineAmount} penalty fine to ${member.name} for missing daily task!`, 'danger');
 
-      showToast(`🔻 Applied ₹${fineAmount} penalty fine to ${m.name} for missing daily task!`, 'danger');
+    await updateMember({
+      ...member,
+      depositBalance: newDeposit,
+      penaltiesPaid: newPenaltiesPaid,
+      currentStreak: 0
+    });
 
-      return {
-        ...m,
-        depositBalance: newDeposit,
-        penaltiesPaid: newPenaltiesPaid,
-        currentStreak: 0, // Streak resets on penalty
-        history: {
-          ...m.history,
-          [currentDate]: {
-            solved: false,
-            penaltyApplied: true,
-            penaltyAmount: fineAmount,
-            appliedAt: new Date().toISOString()
-          }
-        }
-      };
-    }));
+    await upsertSubmission(member.id, currentDate, {
+      solved: false,
+      penaltyApplied: true,
+      penaltyAmount: fineAmount,
+      appliedAt: new Date().toISOString()
+    });
+
+    await refreshData();
   };
 
-  // Verify single member via LeetCode API
+  // Verify single member (moderator/admin trigger)
   const handleVerifyMember = async (member) => {
-    showToast(`Checking LeetCode API for @${member.leetcodeUsername}...`, 'info');
+    showToast(`Checking ${member.platform || 'LeetCode'} submissions for @${member.leetcodeUsername}...`, 'info');
 
-    const result = await verifyDailySubmission(member.leetcodeUsername, dailyTask.titleSlug, currentDate);
+    const result = await verifyDailySubmission(
+      member.platform || 'LeetCode',
+      member.leetcodeUsername,
+      dailyTask.titleSlug,
+      currentDate
+    );
 
     if (result.verified) {
-      // If not already solved, update state
       if (!member.history[currentDate]?.solved) {
-        handleToggleManualSolved(member);
+        await handleToggleManualSolved(member);
       } else {
         showToast(`✅ Confirmed: @${member.leetcodeUsername} solved '${dailyTask.title}'!`, 'success');
       }
@@ -168,16 +338,21 @@ function App() {
     }
   };
 
-  // Auto-verify all members in parallel
+  // Auto-verify all members
   const handleVerifyAllMembers = async () => {
-    showToast(`Verifying all members against LeetCode GraphQL...`, 'info');
+    showToast(`Verifying all member submissions...`, 'info');
     let verifiedCount = 0;
 
-    for (const member of members) {
+    for (const member of competingMembers) {
       if (!member.history[currentDate]?.solved) {
-        const result = await verifyDailySubmission(member.leetcodeUsername, dailyTask.titleSlug, currentDate);
+        const result = await verifyDailySubmission(
+          member.platform || 'LeetCode',
+          member.leetcodeUsername,
+          dailyTask.titleSlug,
+          currentDate
+        );
         if (result.verified) {
-          handleToggleManualSolved(member);
+          await handleToggleManualSolved(member);
           verifiedCount++;
         }
       }
@@ -186,12 +361,517 @@ function App() {
     if (verifiedCount > 0) {
       showToast(`Verified ${verifiedCount} new member submissions!`, 'success');
     } else {
-      showToast(`Completed verification check across all members.`, 'info');
+      showToast(`Completed verification check. No new solutions found.`, 'info');
     }
   };
 
+  // Verify currently logged in user
+  const handleVerifySelf = async () => {
+    if (!loggedInMember) return;
+    showToast(`Checking your ${loggedInMember.platform} submissions...`, 'info');
+
+    const result = await verifyDailySubmission(
+      loggedInMember.platform,
+      loggedInMember.leetcodeUsername,
+      dailyTask.titleSlug,
+      currentDate
+    );
+
+    if (result.verified) {
+      if (!loggedInMember.history[currentDate]?.solved) {
+        await handleToggleManualSolved(loggedInMember);
+      } else {
+        showToast(`✅ Verified: You solved '${dailyTask.title}' today!`, 'success');
+      }
+    } else {
+      if (result.isOfflineMode) {
+        showToast(`Could not query API directly. Request admin verification or try again.`, 'warning');
+      } else {
+        showToast(`No accepted submission found. Please solve the problem first!`, 'warning');
+      }
+    }
+  };
+
+  // Streamlined 1-step sign-up handler with Supabase Auth
+  const handleStreamlinedSignup = async (e) => {
+    e.preventDefault();
+    setSignupError('');
+
+    const username = signupUsername.trim();
+    const password = signupPassword.trim();
+    const platform = 'LeetCode';
+    const depositVal = Number(signupDeposit) || 500;
+
+    if (!username || !password) {
+      setSignupError('Please enter a platform username and password.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setSignupError('Password must be at least 6 characters.');
+      return;
+    }
+
+    // Check if username already exists in members table or admin reserved list
+    const existing = members.find(
+      m => m.leetcodeUsername.toLowerCase() === username.toLowerCase()
+    );
+    if (existing || username.toLowerCase() === 'shivamkumarninety' || username.toLowerCase() === 'admin') {
+      const msg = `Username @${username} is already registered on ${platform}. Please sign in instead!`;
+      setSignupError(msg);
+      showToast(msg, 'warning');
+      return;
+    }
+
+    setIsVerifyingSignup(true);
+    showToast(`Verifying ${platform} profile @${username}...`, 'info');
+
+    const result = await verifyPlatformProfile(platform, username);
+    setIsVerifyingSignup(false);
+
+    if (!result.verified && result.error) {
+      setSignupError(result.error);
+      showToast(result.error, 'danger');
+      return;
+    }
+
+    // Create Supabase Auth account (password is hashed server-side)
+    const email = buildEmailFromUsername(username);
+    let authResult = await signUpMember({
+      email,
+      password,
+      platformUsername: username,
+      platform
+    });
+
+    if (authResult.error) {
+      setSignupError(authResult.error);
+      showToast(authResult.error, 'danger');
+      return;
+    }
+
+    // Ensure session is active
+    if (!authResult.session) {
+      const loginRes = await signIn(email, password);
+      if (loginRes.user) {
+        authResult = loginRes;
+      }
+    }
+
+    const realName = result.realName || username;
+    const authUid = authResult.user?.id || null;
+
+    const newMember = {
+      id: `mem-${Date.now()}`,
+      name: realName,
+      gmail: email,
+      leetcodeUsername: username,
+      platform: platform,
+      authUid: authUid,
+      verifiedBio: true,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
+      color: platform === 'Codeforces' ? '#ef4444' : '#ffb300',
+      initialDeposit: depositVal,
+      depositBalance: depositVal,
+      currentStreak: 0,
+      totalPoints: 0,
+      solvedCount: 0,
+      penaltiesPaid: 0,
+      history: {}
+    };
+
+    await insertMember(newMember);
+    await refreshData();
+
+    // Fetch the inserted member to get the full object
+    const insertedMember = authUid ? await fetchMemberByAuthUid(authUid) : null;
+    setAuthUser(authResult.user);
+    setCurrentUser(insertedMember || newMember);
+    setUserRole('member');
+    setCurrentView('dashboard');
+    if (window.location.pathname !== '/dashboard') {
+      window.history.pushState(null, '', '/dashboard');
+    }
+    setSignupUsername('');
+    setSignupPassword('');
+    setSignupError('');
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    showToast(`🎉 Account created & verified! Welcome @${username}`, 'success');
+  };
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const username = loginUsername.trim().toLowerCase();
+    const password = loginPassword.trim();
+
+    if (!username || !password) {
+      setLoginError('Please enter your username and password.');
+      return;
+    }
+
+    // Sign in via Supabase Auth (password verified server-side, never stored in plain text)
+    const email = buildEmailFromUsername(username);
+    const authResult = await signIn(email, password);
+
+    if (authResult.error) {
+      const msg = "Invalid credentials. Please verify your username and password.";
+      setLoginError(msg);
+      showToast(msg, "danger");
+      return;
+    }
+
+    // Look up member by auth UID
+    const member = await fetchMemberByAuthUid(authResult.user.id);
+    if (!member) {
+      const msg = "Account not found. Please sign up first.";
+      setLoginError(msg);
+      showToast(msg, "danger");
+      return;
+    }
+
+    setAuthUser(authResult.user);
+    setCurrentUser(member);
+    setUserRole('member');
+    setCurrentView('dashboard');
+    if (window.location.pathname !== '/dashboard') {
+      window.history.pushState(null, '', '/dashboard');
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    showToast(`Logged in as @${member.leetcodeUsername}`, "success");
+    setLoginUsername('');
+    setLoginPassword('');
+    setLoginError('');
+  };
+
+  const handleAdminModalLogin = async (emailOrUsername, pwd) => {
+    setAdminLoginError('');
+    const cleanInput = emailOrUsername.trim().toLowerCase();
+    const cleanPwd = pwd.trim();
+
+    // Determine email: if it contains @, use as-is; otherwise, treat as username
+    const email = cleanInput.includes('@') ? cleanInput : buildEmailFromUsername(cleanInput);
+
+    const authResult = await signIn(email, cleanPwd);
+
+    if (authResult.error) {
+      const msg = "Invalid admin credentials.";
+      setAdminLoginError(msg);
+      showToast(msg, "danger");
+      return;
+    }
+
+    // Check if this user has admin role
+    if (!checkIsAdmin(authResult.user)) {
+      const msg = "Access denied. This account does not have admin privileges.";
+      setAdminLoginError(msg);
+      showToast(msg, "danger");
+      // Sign them out since they're not an admin
+      await signOut();
+      return;
+    }
+
+    setIsAdminModalOpen(false);
+    setAuthUser(authResult.user);
+    setUserRole('admin');
+    setCurrentUser(null);
+    setCurrentView('dashboard');
+    if (window.location.pathname !== '/dashboard') {
+      window.history.pushState(null, '', '/dashboard');
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    showToast(`Logged in as Admin`, "success");
+    setAdminLoginError('');
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    setAuthUser(null);
+    setCurrentUser(null);
+    setUserRole(null);
+    setCurrentView('landing');
+    window.history.replaceState(null, '', '/');
+    showToast("Logged out successfully.");
+  };
+
+  // Render views
+
+  // Loading state while fetching from Supabase
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '16px' }}>
+        <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>Loading CodeStake...</p>
+      </div>
+    );
+  }
+
+  if (currentView === 'landing') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div className="landing-container" style={{ maxWidth: '800px', margin: '40px auto 60px', padding: '0 20px', flex: 1 }}>
+          {/* Landing Page Branding */}
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h1 style={{ 
+              fontSize: 'clamp(2.8rem, 8vw, 5rem)',
+              fontWeight: '900', 
+              letterSpacing: '-0.03em', 
+              lineHeight: '1.1',
+              margin: '0 0 14px 0',
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'center',
+              gap: '0'
+            }}>
+              <span style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), #8b5cf6)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>code</span>
+              <span style={{
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>{stakeDisplay}</span>
+              <span style={{
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '300',
+                animation: 'blinkCursor 0.85s step-end infinite',
+                marginLeft: '1px'
+              }}>|</span>
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginTop: '10px' }}>
+              Automated daily DSA tracking on LeetCode & Codeforces with deposit penalties.
+            </p>
+          </div>
+
+          {/* Global Stats bar */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '32px' }}>
+            <div className="landing-card" style={{ padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Stake Pot</span>
+              <strong style={{ fontSize: '1.6rem', color: '#10b981' }}>₹{groupPot}</strong>
+            </div>
+            <div className="landing-card" style={{ padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Active Members</span>
+              <strong style={{ fontSize: '1.6rem', color: 'var(--accent-primary)' }}>{members.length}</strong>
+            </div>
+            <div className="landing-card" style={{ padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Platform</span>
+              <strong style={{ fontSize: '1.6rem', color: 'var(--text-main)' }}>LeetCode</strong>
+            </div>
+          </div>
+
+          {/* Action Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'flex-start' }}>
+            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', height: '310px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <Users size={22} className="text-accent" />
+                <h3 style={{ fontWeight: '700', fontSize: '1.2rem' }}>Join the Challenge</h3>
+              </div>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '16px' }}>
+                Sign up as a new member, verify your LeetCode/Codeforces account profile, deposit collateral, and compete!
+              </p>
+              <button className="btn btn-primary" onClick={() => { setSignupError(''); setCurrentView('signup'); }} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 'auto' }}>
+                <span>Create Account</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+
+            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', minHeight: '310px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <Key size={22} className="text-orange" />
+                <h3 style={{ fontWeight: '700', fontSize: '1.2rem' }}>Member Sign In</h3>
+              </div>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                Already a member? Enter your platform username and password to sign in.
+              </p>
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                {loginError && (
+                  <div className="modern-alert modern-alert-danger">
+                    <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                    <div className="modern-alert-content" style={{ flex: 1 }}>
+                      <span className="modern-alert-title">Auth Error</span>
+                      <span className="modern-alert-text">{loginError}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="alert-dismiss-btn"
+                      onClick={() => setLoginError('')}
+                      title="Dismiss error"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                <input 
+                  type="text" 
+                  placeholder="Platform username (e.g. aarav_coder)" 
+                  value={loginUsername}
+                  onChange={(e) => { setLoginUsername(e.target.value); setLoginError(''); }}
+                  required
+                  className="form-control"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: '0.88rem' }}
+                />
+                <input 
+                  type="password" 
+                  placeholder="Password" 
+                  value={loginPassword}
+                  onChange={(e) => { setLoginPassword(e.target.value); setLoginError(''); }}
+                  required
+                  className="form-control"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: '0.88rem' }}
+                />
+                <button className="btn btn-primary" type="submit" style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 'auto' }}>
+                  <span>Member Login</span>
+                  <ArrowRight size={16} />
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <Footer 
+          theme={theme} 
+          userRole={userRole}
+          onToggleTheme={toggleTheme} 
+          onOpenAdminModal={() => {
+            setAdminLoginError('');
+            setIsAdminModalOpen(true);
+          }}
+        />
+        {isAdminModalOpen && (
+          <AdminLoginModal 
+            isOpen={isAdminModalOpen}
+            onClose={() => setIsAdminModalOpen(false)}
+            onAdminLogin={handleAdminModalLogin}
+            adminLoginError={adminLoginError}
+            onClearError={() => setAdminLoginError('')}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (currentView === 'signup') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div className="signup-container" style={{ maxWidth: '480px', margin: '40px auto 60px', padding: '32px', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-card)', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <UserCheck className="text-accent" size={28} />
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>Create Account & Verify</h2>
+          </div>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '22px' }}>
+            Instant 1-step registration. Enter your public profile handle and start competing!
+          </p>
+
+          <form onSubmit={handleStreamlinedSignup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {signupError && (
+              <div className="modern-alert modern-alert-danger">
+                <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                <div className="modern-alert-content" style={{ flex: 1 }}>
+                  <span className="modern-alert-title">Registration Error</span>
+                  <span className="modern-alert-text">{signupError}</span>
+                </div>
+                <button 
+                  type="button" 
+                  className="alert-dismiss-btn"
+                  onClick={() => setSignupError('')}
+                  title="Dismiss error"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>LeetCode Public @Username</label>
+              <input 
+                type="text" 
+                placeholder="e.g. aarav_coder"
+                value={signupUsername} 
+                onChange={(e) => { setSignupUsername(e.target.value); setSignupError(''); }}
+                required
+                className="form-control"
+                style={{ width: '100%', padding: '10px 14px' }}
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group">
+              <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>Login Password</label>
+              <input 
+                type="password" 
+                placeholder="Choose a password" 
+                value={signupPassword} 
+                onChange={(e) => { setSignupPassword(e.target.value); setSignupError(''); }}
+                required
+                className="form-control"
+                style={{ width: '100%', padding: '10px 14px' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>Stake Deposit Collateral (₹)</label>
+              <input 
+                type="number" 
+                min="100" 
+                value={signupDeposit} 
+                onChange={(e) => setSignupDeposit(e.target.value)}
+                required
+                className="form-control"
+                style={{ width: '100%', padding: '10px 14px' }}
+              />
+              <small style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Staked pool collateral. Deducts ₹50 fine per missed daily problem.</small>
+            </div>
+
+            <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setCurrentView('landing')} style={{ flex: 1, justifyContent: 'center', padding: '12px' }}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={isVerifyingSignup} style={{ flex: 2, justifyContent: 'center', padding: '12px' }}>
+                {isVerifyingSignup ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Verifying Profile...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Verify & Create Account</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+        <Footer 
+          theme={theme} 
+          userRole={userRole}
+          onToggleTheme={toggleTheme} 
+          onOpenAdminModal={() => {
+            setAdminLoginError('');
+            setIsAdminModalOpen(true);
+          }}
+        />
+        {isAdminModalOpen && (
+          <AdminLoginModal 
+            isOpen={isAdminModalOpen}
+            onClose={() => setIsAdminModalOpen(false)}
+            onAdminLogin={handleAdminModalLogin}
+            adminLoginError={adminLoginError}
+            onClearError={() => setAdminLoginError('')}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Toast Banner */}
       {toast && (
         <div className={`toast-notification toast-${toast.type}`}>
@@ -206,47 +886,54 @@ function App() {
       {/* Main Header */}
       <Header 
         groupPot={groupPot}
-        onOpenAddMember={() => setIsAddMemberOpen(true)}
+        onOpenAddMember={() => { setSignupError(''); setCurrentView('signup'); }}
         onOpenSheetBrowser={() => setIsSheetBrowserOpen(true)}
         onOpenPenaltyModal={() => setIsPenaltyModalOpen(true)}
         currentDate={currentDate}
         onDateChange={setCurrentDate}
+        userRole={userRole}
+        loggedInMember={loggedInMember}
+        onLogout={handleLogout}
       />
 
-      <main className="main-content">
+      <main className="main-content" style={{ flex: 1 }}>
         {/* Daily Assigned Problem Card */}
         <DailyChallengeCard 
           dailyTask={dailyTask}
           onOpenSheetBrowser={() => setIsSheetBrowserOpen(true)}
-          members={members}
+          members={competingMembers}
           onVerifyAll={handleVerifyAllMembers}
+          onVerifySelf={handleVerifySelf}
+          userRole={userRole}
+          loggedInMember={loggedInMember}
         />
 
         {/* Group Leaderboard & Deposit Balances */}
         <Leaderboard 
-          members={members}
+          members={competingMembers}
           dailyTask={dailyTask}
           currentDate={currentDate}
           onVerifyMember={handleVerifyMember}
           onToggleManualSolved={handleToggleManualSolved}
           onApplyPenalty={handleApplyPenalty}
           onSelectMember={setSelectedMemberDetail}
+          userRole={userRole}
+          currentUser={loggedInMember}
         />
       </main>
 
-      {/* Footer */}
-      <footer className="app-footer">
-        <p>CodeStake DSA Tracker — Powered by LeetCode GraphQL & Striver / NeetCode Curricula</p>
-      </footer>
+      {/* Minimal Big Footer */}
+      <Footer 
+        theme={theme} 
+        userRole={userRole}
+        onToggleTheme={toggleTheme} 
+        onOpenAdminModal={() => {
+          setAdminLoginError('');
+          setIsAdminModalOpen(true);
+        }}
+      />
 
       {/* Modals */}
-      {isAddMemberOpen && (
-        <MemberManagementModal 
-          onAddMember={handleAddMember}
-          onClose={() => setIsAddMemberOpen(false)}
-        />
-      )}
-
       {isSheetBrowserOpen && (
         <ProblemSheetBrowser 
           currentTask={dailyTask}
@@ -267,6 +954,16 @@ function App() {
         <UserDetailModal 
           member={selectedMemberDetail}
           onClose={() => setSelectedMemberDetail(null)}
+        />
+      )}
+
+      {isAdminModalOpen && (
+        <AdminLoginModal 
+          isOpen={isAdminModalOpen}
+          onClose={() => setIsAdminModalOpen(false)}
+          onAdminLogin={handleAdminModalLogin}
+          adminLoginError={adminLoginError}
+          onClearError={() => setAdminLoginError('')}
         />
       )}
     </div>
