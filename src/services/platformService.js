@@ -109,7 +109,40 @@ export async function fetchLeetCodeSubmissions(username) {
       }
     }
   } catch (err) {
-    console.warn("Direct LeetCode GraphQL fetch failed or blocked by CORS, trying backup proxy API...", err);
+    console.warn("Direct LeetCode GraphQL fetch failed or blocked by CORS, trying CORS proxy...", err);
+  }
+
+  // Try CORS proxy fallback
+  try {
+    const corsProxyRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(LEETCODE_GRAPHQL_ENDPOINT)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `
+          query getUserSubmissions($username: String!, $limit: Int!) {
+            recentSubmissionList(username: $username, limit: $limit) {
+              title
+              titleSlug
+              statusDisplay
+              timestamp
+            }
+          }
+        `,
+        variables: { username: username.trim(), limit: 20 }
+      })
+    });
+    if (corsProxyRes.ok) {
+      const data = await corsProxyRes.json();
+      if (data.data && data.data.recentSubmissionList) {
+        return {
+          success: true,
+          submissions: data.data.recentSubmissionList,
+          source: "CORS Proxy"
+        };
+      }
+    }
+  } catch (corsErr) {
+    console.warn("CORS proxy failed, trying backup REST API...", corsErr);
   }
 
   try {

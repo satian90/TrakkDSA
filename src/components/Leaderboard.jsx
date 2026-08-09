@@ -10,12 +10,20 @@ export default function Leaderboard({
   onVerifyMember, 
   onToggleManualSolved,
   onApplyPenalty,
+  onToggleBlockMember,
+  onApprovePayment,
+  onRejectPayment,
+  onOpenDepositModal,
   onSelectMember,
   userRole,
   currentUser
 }) {
-  const [activeTab, setActiveTab] = useState('leaderboard'); // 'leaderboard' | 'stakes'
+  const [activeTab, setActiveTab] = useState('leaderboard'); // 'leaderboard' | 'stakes' | 'payments'
   const [loadingId, setLoadingId] = useState(null);
+
+  // Filter members with pending payments
+  const pendingPayments = members.filter(m => m.depositStatus === 'PENDING' || (m.utrNumber && m.depositStatus !== 'APPROVED'));
+  const pendingPaymentsCount = pendingPayments.length;
 
   // Sort members by totalPoints descending, then currentStreak descending
   const sortedMembers = [...members].sort((a, b) => {
@@ -38,7 +46,7 @@ export default function Leaderboard({
 
   return (
     <div className="leaderboard-section modern-leaderboard">
-      <div className="section-header">
+      <div className="section-header-row">
         <div className="tabs-header">
           <button 
             className={`tab-btn ${activeTab === 'leaderboard' ? 'active' : ''}`}
@@ -54,7 +62,33 @@ export default function Leaderboard({
             <Wallet size={18} />
             <span>Deposit Balances & Fines</span>
           </button>
+          {userRole === 'admin' && (
+            <button 
+              className={`tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
+              onClick={() => setActiveTab('payments')}
+              style={{ position: 'relative' }}
+            >
+              <ShieldCheck size={18} />
+              <span>Pending Payment Approvals</span>
+              {pendingPaymentsCount > 0 && (
+                <span style={{ background: '#ef4444', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '800', marginLeft: '6px' }}>
+                  {pendingPaymentsCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
+
+        {userRole !== 'admin' && onOpenDepositModal && (
+          <button 
+            className="btn btn-sm btn-primary"
+            onClick={onOpenDepositModal}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem' }}
+          >
+            <Wallet size={14} />
+            <span>Deposit / Top Up Collateral</span>
+          </button>
+        )}
       </div>
 
       {activeTab === 'leaderboard' ? (
@@ -113,6 +147,11 @@ export default function Leaderboard({
                               {member.verifiedBio && (
                                 <span className="verified-badge-pill" title={`Verified Gmail: ${member.gmail}`}>
                                   <ShieldCheck size={12} /> Verified
+                                </span>
+                              )}
+                              {member.isBlocked && (
+                                <span className="blocked-badge-pill" style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', padding: '2px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '700' }} title="User account is blocked">
+                                  <ShieldAlert size={12} style={{ display: 'inline', marginRight: '3px' }} /> Blocked
                                 </span>
                               )}
                             </div>
@@ -204,6 +243,16 @@ export default function Leaderboard({
                                 Apply Fine
                               </button>
                             )}
+                            {onToggleBlockMember && (
+                              <button 
+                                className={`btn btn-xs ${member.isBlocked ? 'btn-outline' : 'btn-danger'}`}
+                                onClick={() => onToggleBlockMember(member)}
+                                title={member.isBlocked ? "Unblock this user" : "Block this user from logging in"}
+                                style={member.isBlocked ? { borderColor: '#10b981', color: '#10b981' } : {}}
+                              >
+                                {member.isBlocked ? 'Unblock' : 'Block'}
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -214,13 +263,13 @@ export default function Leaderboard({
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : activeTab === 'stakes' ? (
         <div className="table-responsive">
           <table className="custom-table modern-table">
             <thead>
               <tr>
                 <th>Member</th>
-                <th>Verified Gmail</th>
+                <th>LeetCode Handle / Email</th>
                 <th>Initial Stake</th>
                 <th>Current Deposit Balance</th>
                 <th>Total Penalties Deducted</th>
@@ -241,6 +290,9 @@ export default function Leaderboard({
                 sortedMembers.map((member) => {
                   const depositHealth = Math.round((member.depositBalance / member.initialDeposit) * 100);
                   const isSelf = currentUser && currentUser.id === member.id;
+                  const displayEmail = member.gmail && !member.gmail.endsWith('@codestake.app') 
+                    ? member.gmail 
+                    : `@${member.leetcodeUsername}`;
 
                   return (
                     <tr 
@@ -256,7 +308,7 @@ export default function Leaderboard({
                         </div>
                       </td>
                       <td>
-                        <span className="text-muted font-monospace">{member.gmail || "verified@gmail.com"}</span>
+                        <span className="text-muted font-monospace">{displayEmail}</span>
                       </td>
                       <td>₹{member.initialDeposit}</td>
                       <td>
@@ -285,6 +337,101 @@ export default function Leaderboard({
                     </tr>
                   );
                 })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table className="custom-table modern-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Handle / Email</th>
+                <th>Collateral Amount</th>
+                <th>12-Digit UTR Ref ID</th>
+                <th>Submission Status</th>
+                <th>Admin Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingPayments.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>No pending payment verifications</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>All member collateral deposits are verified & approved!</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                pendingPayments.map((member) => (
+                  <tr key={member.id}>
+                    <td>
+                      <div className="user-profile-cell">
+                        <img src={member.avatar} alt={member.name} className="user-avatar" />
+                        <span className="user-name" style={{ fontWeight: '700', color: 'var(--text-main)' }}>
+                          {member.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>@{member.leetcodeUsername}</span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{member.gmail}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style={{ color: '#10b981', fontSize: '0.95rem' }}>₹{member.initialDeposit || 500}</strong>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <code style={{ background: 'var(--bg-card-subtle)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', color: 'var(--accent-primary)', fontWeight: '700', fontSize: '0.88rem' }}>
+                          {member.utrNumber || 'N/A'}
+                        </code>
+                        {member.utrNumber && (
+                          <button 
+                            className="btn btn-xs btn-outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(member.utrNumber);
+                              alert(`Copied UTR: ${member.utrNumber}`);
+                            }}
+                            title="Copy UTR Number"
+                            style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                          >
+                            Copy
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {member.depositStatus === 'APPROVED' ? (
+                        <span className="status-badge status-solved">Approved ✅</span>
+                      ) : member.depositStatus === 'REJECTED' ? (
+                        <span className="status-badge status-fined">Rejected ❌</span>
+                      ) : (
+                        <span className="status-badge status-pending">Pending Review ⏳</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons-group">
+                        <button 
+                          className="btn btn-xs btn-primary"
+                          onClick={() => onApprovePayment(member)}
+                          style={{ background: '#10b981', borderColor: '#059669', color: '#ffffff' }}
+                        >
+                          Approve Payment
+                        </button>
+                        <button 
+                          className="btn btn-xs btn-danger"
+                          onClick={() => onRejectPayment(member)}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

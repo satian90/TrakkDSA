@@ -7,6 +7,7 @@ import ProblemSheetBrowser from './components/ProblemSheetBrowser';
 import UserDetailModal from './components/UserDetailModal';
 import Footer from './components/Footer';
 import AdminLoginModal from './components/AdminLoginModal';
+import UpiDepositModal from './components/UpiDepositModal';
 
 import { verifyDailySubmission, verifyPlatformProfile } from './services/platformService';
 import { fetchMembers, insertMember, updateMember, upsertSubmission, fetchDailyTask, updateDailyTask, fetchMemberByAuthUid } from './services/dbService';
@@ -48,6 +49,7 @@ function App() {
   const [isSheetBrowserOpen, setIsSheetBrowserOpen] = useState(false);
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isUpiModalOpen, setIsUpiModalOpen] = useState(false);
   const [selectedMemberDetail, setSelectedMemberDetail] = useState(null);
 
   // Notification Toast state
@@ -117,9 +119,18 @@ function App() {
           // Look up member by auth UID
           const member = await fetchMemberByAuthUid(user.id);
           if (member) {
-            setCurrentUser(member);
-            setUserRole('member');
-            setCurrentView('dashboard');
+            if (member.isBlocked) {
+              await signOut();
+              setAuthUser(null);
+              setCurrentUser(null);
+              setUserRole(null);
+              setCurrentView('landing');
+              showToast("You are blocked. Please contact admin.", "danger");
+            } else {
+              setCurrentUser(member);
+              setUserRole('member');
+              setCurrentView('dashboard');
+            }
           }
         }
       }
@@ -144,6 +155,32 @@ function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Automated background submission tracking for logged-in member
+  useEffect(() => {
+    if (userRole !== 'member' || !loggedInMember || !dailyTask) return;
+
+    const autoCheckSubmission = async () => {
+      // Don't poll if today's task is already marked solved
+      if (loggedInMember.history[currentDate]?.solved) return;
+
+      const result = await verifyDailySubmission(
+        loggedInMember.platform || 'LeetCode',
+        loggedInMember.leetcodeUsername,
+        dailyTask.titleSlug,
+        currentDate
+      );
+
+      if (result.verified) {
+        await handleToggleManualSolved(loggedInMember);
+        showToast(`🎉 Auto-Verified! @${loggedInMember.leetcodeUsername} solved '${dailyTask.title}' today!`, 'success');
+      }
+    };
+
+    autoCheckSubmission();
+    const interval = setInterval(autoCheckSubmission, 30000);
+    return () => clearInterval(interval);
+  }, [userRole, loggedInMember, dailyTask, currentDate, handleToggleManualSolved]);
 
   // Scroll to top on view change
   useEffect(() => {
@@ -264,7 +301,7 @@ function App() {
   };
 
   // Toggle manual solved status for a member
-  const handleToggleManualSolved = async (member) => {
+  const handleToggleManualSolved = useCallback(async (member) => {
     const dayLog = member.history[currentDate] || {};
     const currentlySolved = !!dayLog.solved;
 
@@ -301,7 +338,7 @@ function App() {
     });
 
     await refreshData();
-  };
+  }, [currentDate, dailyTask, refreshData]);
 
   // Apply Miss Penalty
   const handleApplyPenalty = async (member) => {
@@ -326,6 +363,71 @@ function App() {
     });
 
     await refreshData();
+  };
+
+  // Toggle member block/unblock status (Admin only)
+  const handleToggleBlockMember = async (member) => {
+    const nextStatus = !member.isBlocked;
+    showToast(`${nextStatus ? '🚫 Blocking' : '✅ Unblocking'} @${member.leetcodeUsername}...`, 'info');
+
+    await updateMember({
+      ...member,
+      isBlocked: nextStatus
+    });
+
+    await refreshData();
+
+    if (nextStatus) {
+      showToast(`🚫 Blocked @${member.leetcodeUsername}. Access revoked.`, 'warning');
+    } else {
+      showToast(`✅ Unblocked @${member.leetcodeUsername}. Access restored.`, 'success');
+    }
+  };
+
+  // Handle UTR Submission by member
+  const handleSubmitUtr = async (utrNumber, amount) => {
+    if (!loggedInMember) return;
+
+    showToast(`Submitting UTR ${utrNumber} for Admin approval...`, 'info');
+
+    await updateMember({
+      ...loggedInMember,
+      utrNumber: utrNumber,
+      depositStatus: 'PENDING',
+      initialDeposit: amount,
+      depositBalance: amount
+    });
+
+    await refreshData();
+    showToast(`🎉 UTR ${utrNumber} submitted! Verification pending Admin approval.`, 'success');
+  };
+
+  // Admin Approve Payment
+  const handleApprovePayment = async (member) => {
+    const amount = member.initialDeposit || 500;
+    showToast(`Approving ₹${amount} deposit for @${member.leetcodeUsername}...`, 'info');
+
+    await updateMember({
+      ...member,
+      depositStatus: 'APPROVED',
+      depositBalance: amount
+    });
+
+    await refreshData();
+    showToast(`✅ Approved ₹${amount} deposit for @${member.leetcodeUsername}!`, 'success');
+  };
+
+  // Admin Reject Payment
+  const handleRejectPayment = async (member) => {
+    showToast(`Rejecting deposit for @${member.leetcodeUsername}...`, 'warning');
+
+    await updateMember({
+      ...member,
+      depositStatus: 'REJECTED'
+    });
+
+    await refreshData();
+    showToast(`❌ Rejected deposit for @${member.leetcodeUsername}.`, 'info');
   };
 
   // Verify single member (moderator/admin trigger)
@@ -546,6 +648,15 @@ function App() {
       return;
     }
 
+    // Check if user is blocked
+    if (member.isBlocked) {
+      await signOut();
+      const msg = "You are blocked. Please contact admin.";
+      setLoginError(msg);
+      showToast(msg, "danger");
+      return;
+    }
+
     setAuthUser(authResult.user);
     setCurrentUser(member);
     setUserRole('member');
@@ -726,7 +837,7 @@ function App() {
                 )}
                 <input 
                   type="text" 
-                  placeholder="Platform username (e.g. aarav_coder)" 
+                  placeholder="LeetCode username (e.g. dev_coder)" 
                   value={loginUsername}
                   onChange={(e) => { setLoginUsername(e.target.value); setLoginError(''); }}
                   required
@@ -807,7 +918,7 @@ function App() {
               <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>LeetCode Public @Username</label>
               <input 
                 type="text" 
-                placeholder="e.g. aarav_coder"
+                placeholder="e.g. dev_coder"
                 value={signupUsername} 
                 onChange={(e) => { setSignupUsername(e.target.value); setSignupError(''); }}
                 required
@@ -932,6 +1043,10 @@ function App() {
           onVerifyMember={handleVerifyMember}
           onToggleManualSolved={handleToggleManualSolved}
           onApplyPenalty={handleApplyPenalty}
+          onToggleBlockMember={handleToggleBlockMember}
+          onApprovePayment={handleApprovePayment}
+          onRejectPayment={handleRejectPayment}
+          onOpenDepositModal={() => setIsUpiModalOpen(true)}
           onSelectMember={setSelectedMemberDetail}
           userRole={userRole}
           currentUser={loggedInMember}
@@ -980,6 +1095,15 @@ function App() {
           onAdminLogin={handleAdminModalLogin}
           adminLoginError={adminLoginError}
           onClearError={() => setAdminLoginError('')}
+        />
+      )}
+
+      {isUpiModalOpen && (
+        <UpiDepositModal 
+          isOpen={isUpiModalOpen}
+          onClose={() => setIsUpiModalOpen(false)}
+          depositAmount={loggedInMember?.initialDeposit || 500}
+          onSubmitUtr={handleSubmitUtr}
         />
       )}
     </div>

@@ -6,7 +6,6 @@ export default function DailyChallengeCard({
   onOpenSheetBrowser,
   members,
   onVerifyAll,
-  onVerifySelf,
   userRole
 }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -127,14 +126,12 @@ export default function DailyChallengeCard({
             <span>Auto-Verify All Members</span>
           </button>
         ) : userRole === 'member' ? (
-          <button 
-            className="btn btn-primary btn-sm" 
-            onClick={onVerifySelf}
-            style={{ background: 'var(--accent-primary)', color: '#ffffff' }}
-          >
-            <CheckCircle size={15} />
-            <span>Verify My Submission</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-card-subtle)', padding: '6px 14px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border-subtle)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }}></span>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)' }}>
+              Auto-Tracking Active (Live Sync)
+            </span>
+          </div>
         ) : (
           <button 
             className="btn btn-secondary btn-sm" 

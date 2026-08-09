@@ -23,7 +23,10 @@ function snakeToCamel(obj) {
     verified_at: 'verifiedAt',
     penalty_applied: 'penaltyApplied',
     applied_at: 'appliedAt',
-    auth_uid: 'authUid'
+    auth_uid: 'authUid',
+    is_blocked: 'isBlocked',
+    deposit_status: 'depositStatus',
+    utr_number: 'utrNumber'
   };
   const result = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -54,7 +57,10 @@ function camelToSnake(obj) {
     verifiedAt: 'verified_at',
     penaltyApplied: 'penalty_applied',
     appliedAt: 'applied_at',
-    authUid: 'auth_uid'
+    authUid: 'auth_uid',
+    isBlocked: 'is_blocked',
+    depositStatus: 'deposit_status',
+    utrNumber: 'utr_number'
   };
   const result = {};
   for (const [key, val] of Object.entries(obj)) {
