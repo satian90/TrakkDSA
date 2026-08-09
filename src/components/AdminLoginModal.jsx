@@ -56,7 +56,7 @@ export default function AdminLoginModal({ isOpen, onClose, onAdminLogin, adminLo
               <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>Admin Email or Username</label>
               <input 
                 type="text" 
-                placeholder="admin@codestake.app or admin" 
+                placeholder="admin@yourdomain.com" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
                 required

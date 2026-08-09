@@ -137,10 +137,10 @@ CREATE POLICY "Members can manage their own submissions" ON submissions FOR ALL 
   member_id IN (SELECT id FROM members WHERE auth_uid = auth.uid())
 );
 
--- Helper function to identify admins based on known email addresses
+-- Helper function to identify admins based on custom claims
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN (auth.jwt() ->> 'email' = 'shivamkumarninety@gmail.com' OR auth.jwt() ->> 'email' = 'admin@codestake.app');
+  RETURN (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin') OR (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

@@ -76,14 +76,9 @@ function App() {
   // Filter out any admin accounts from competing members list (admins are moderators/organizers only)
   const competingMembers = members.filter(m => {
     if (!m) return false;
-    const user = (m.leetcodeUsername || '').toLowerCase();
-    const mail = (m.gmail || '').toLowerCase();
-
-    const isAdminHandle = user === 'shivamkumarninety' || user === 'admin';
-    const isAdminMail = mail.includes('shivamkumarninety') || mail.startsWith('admin@');
     const isAuthAdmin = _authUser && _authUser.id === m.authUid && checkIsAdmin(_authUser);
 
-    return !isAdminHandle && !isAdminMail && !isAuthAdmin;
+    return !isAuthAdmin;
   });
 
   // Sync current user details from members list
@@ -529,7 +524,7 @@ function App() {
     const existing = members.find(
       m => m.leetcodeUsername.toLowerCase() === username.toLowerCase()
     );
-    if (existing || username.toLowerCase() === 'shivamkumarninety' || username.toLowerCase() === 'admin') {
+    if (existing) {
       const msg = `Username @${username} is already registered on ${platform}. Please sign in instead!`;
       setSignupError(msg);
       showToast(msg, 'warning');

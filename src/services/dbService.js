@@ -173,14 +173,28 @@ export async function fetchMemberByAuthUid(authUid) {
 }
 
 export async function insertMember(member) {
+  console.log('--- insertMember START ---');
+  console.log('Payload from frontend:', member);
   const { history: _history, password: _password, ...rest } = member;
   const row = camelToSnake(rest);
-  const { error } = await supabase.from('members').insert(row);
-  if (error) {
-    console.error('insertMember error:', error);
-    return { success: false, error: error.message || error.details || JSON.stringify(error) };
+  console.log('Snake case row for DB:', row);
+  
+  try {
+    const { data, error, status, statusText } = await supabase.from('members').insert(row).select();
+    console.log('Supabase Insert Response:', { data, error, status, statusText });
+    
+    if (error) {
+      console.error('insertMember error:', error);
+      alert(`DB Insert Error: ${error.message} - Please take a screenshot of this alert!`);
+      return { success: false, error: error.message || error.details || JSON.stringify(error) };
+    }
+    console.log('--- insertMember SUCCESS ---');
+    return { success: true };
+  } catch (err) {
+    console.error('insertMember EXCEPTION:', err);
+    alert(`DB Insert Exception: ${err.message} - Please take a screenshot of this alert!`);
+    return { success: false, error: err.message };
   }
-  return { success: true };
 }
 
 export async function updateMember(member) {
