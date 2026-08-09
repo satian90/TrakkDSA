@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { Shield, ArrowRight, X, ShieldAlert } from 'lucide-react';
+import Captcha from './Captcha';
 
 export default function AdminLoginModal({ isOpen, onClose, onAdminLogin, adminLoginError, onClearError }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLocalError('');
+    if (!isCaptchaVerified) {
+      setLocalError('Please solve the security captcha to continue.');
+      return;
+    }
     setIsLoading(true);
     await onAdminLogin(email, password);
     setIsLoading(false);
@@ -34,17 +42,20 @@ export default function AdminLoginModal({ isOpen, onClose, onAdminLogin, adminLo
               Enter administrative credentials to manage problem sheets, verify member solutions, and apply stake penalties.
             </p>
 
-            {adminLoginError && (
+            {(adminLoginError || localError) && (
               <div className="modern-alert modern-alert-danger">
                 <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
                 <div className="modern-alert-content" style={{ flex: 1 }}>
                   <span className="modern-alert-title">Access Denied</span>
-                  <span className="modern-alert-text">{adminLoginError}</span>
+                  <span className="modern-alert-text">{localError || adminLoginError}</span>
                 </div>
                 <button 
                   type="button" 
                   className="alert-dismiss-btn"
-                  onClick={onClearError}
+                  onClick={() => {
+                    onClearError();
+                    setLocalError('');
+                  }}
                   title="Dismiss error"
                 >
                   <X size={14} />
@@ -78,6 +89,8 @@ export default function AdminLoginModal({ isOpen, onClose, onAdminLogin, adminLo
                 style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}
               />
             </div>
+            
+            <Captcha onVerify={setIsCaptchaVerified} />
           </div>
 
           <div className="modal-footer">

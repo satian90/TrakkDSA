@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Captcha from './components/Captcha';
 import Header from './components/Header';
 import DailyChallengeCard from './components/DailyChallengeCard';
 import Leaderboard from './components/Leaderboard';
@@ -69,6 +70,10 @@ function App() {
 
   // Admin Login state
   const [adminLoginError, setAdminLoginError] = useState('');
+
+  // Captcha states
+  const [isLoginCaptchaVerified, setIsLoginCaptchaVerified] = useState(false);
+  const [isSignupCaptchaVerified, setIsSignupCaptchaVerified] = useState(false);
 
   // Typewriter animation state for landing hero
   const [stakeDisplay, setStakeDisplay] = useState('');
@@ -531,6 +536,11 @@ function App() {
       return;
     }
 
+    if (!isSignupCaptchaVerified) {
+      setSignupError('Please solve the security captcha to continue.');
+      return;
+    }
+
     setIsVerifyingSignup(true);
     showToast(`Verifying ${platform} profile @${username}...`, 'info');
 
@@ -634,6 +644,11 @@ function App() {
 
     if (!username || !password) {
       setLoginError('Please enter your username and password.');
+      return;
+    }
+
+    if (!isLoginCaptchaVerified) {
+      setLoginError('Please solve the security captcha to continue.');
       return;
     }
 
@@ -802,8 +817,8 @@ function App() {
           </div>
 
           {/* Action Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'flex-start' }}>
-            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', height: '310px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'stretch' }}>
+            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <Users size={22} className="text-accent" />
                 <h3 style={{ fontWeight: '700', fontSize: '1.2rem' }}>Join the Challenge</h3>
@@ -817,7 +832,7 @@ function App() {
               </button>
             </div>
 
-            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', minHeight: '310px' }}>
+            <div className="landing-card" style={{ padding: '28px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <Key size={22} className="text-orange" />
                 <h3 style={{ fontWeight: '700', fontSize: '1.2rem' }}>Member Sign In</h3>
@@ -861,6 +876,9 @@ function App() {
                   className="form-control"
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', fontSize: '0.88rem' }}
                 />
+                
+                <Captcha onVerify={setIsLoginCaptchaVerified} />
+                
                 <button className="btn btn-primary" type="submit" style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 'auto' }}>
                   <span>Member Login</span>
                   <ArrowRight size={16} />
@@ -948,6 +966,8 @@ function App() {
                 style={{ width: '100%', padding: '10px 14px' }}
               />
             </div>
+
+            <Captcha onVerify={setIsSignupCaptchaVerified} />
 
             <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setCurrentView('landing')} style={{ flex: 1, justifyContent: 'center', padding: '12px' }}>
