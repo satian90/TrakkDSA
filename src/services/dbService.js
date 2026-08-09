@@ -7,6 +7,7 @@ function snakeToCamel(obj) {
     verified_bio: 'verifiedBio',
     initial_deposit: 'initialDeposit',
     deposit_balance: 'depositBalance',
+    debt_balance: 'debtBalance',
     current_streak: 'currentStreak',
     total_points: 'totalPoints',
     solved_count: 'solvedCount',
@@ -41,6 +42,7 @@ function camelToSnake(obj) {
     verifiedBio: 'verified_bio',
     initialDeposit: 'initial_deposit',
     depositBalance: 'deposit_balance',
+    debtBalance: 'debt_balance',
     currentStreak: 'current_streak',
     totalPoints: 'total_points',
     solvedCount: 'solved_count',
@@ -171,15 +173,14 @@ export async function fetchMemberByAuthUid(authUid) {
 }
 
 export async function insertMember(member) {
-  // Remove history, password, and any non-column fields before inserting
   const { history: _history, password: _password, ...rest } = member;
   const row = camelToSnake(rest);
   const { error } = await supabase.from('members').insert(row);
   if (error) {
     console.error('insertMember error:', error);
-    return false;
+    return { success: false, error: error.message || error.details || JSON.stringify(error) };
   }
-  return true;
+  return { success: true };
 }
 
 export async function updateMember(member) {

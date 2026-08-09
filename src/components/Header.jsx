@@ -34,7 +34,7 @@ export default function Header({
                 </span>
               )}
             </h1>
-            <p className="brand-subtitle">Automated LeetCode & Codeforces Verification & Stake Pool</p>
+            <p className="brand-subtitle">Automated LeetCode Verification & Stake Pool</p>
           </div>
         </div>
 

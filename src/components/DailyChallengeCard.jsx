@@ -57,7 +57,7 @@ export default function DailyChallengeCard({
       <div className="card-main">
         <div className="problem-meta">
           <div className="tags-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span className="platform-pill" style={{ background: dailyTask.platform === 'Codeforces' ? '#fee2e2' : '#fef3c7', color: dailyTask.platform === 'Codeforces' ? '#ef4444' : '#d97706', fontWeight: '700', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+            <span className="platform-pill" style={{ background: '#fef3c7', color: '#d97706', fontWeight: '700', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
               {dailyTask.platform || 'LeetCode'}
             </span>
             <span className={`difficulty-badge badge-${dailyTask.difficulty?.toLowerCase()}`}>
@@ -79,8 +79,8 @@ export default function DailyChallengeCard({
               rel="noopener noreferrer" 
               className="btn"
               style={{ 
-                background: dailyTask.platform === 'Codeforces' ? '#ef4444' : '#ffa116', 
-                color: dailyTask.platform === 'Codeforces' ? '#ffffff' : '#000000', 
+                background: '#ffa116', 
+                color: '#000000', 
                 fontWeight: '700' 
               }}
             >

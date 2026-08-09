@@ -14,7 +14,7 @@ export default function Footer({ theme, onToggleTheme, onOpenAdminModal, userRol
             <h2 className="brand-title" style={{ fontSize: '1.6rem' }}>CodeStake</h2>
           </div>
           <p className="footer-tagline">
-            Automated LeetCode & Codeforces verification & deposit stake pool for competitive coders.
+            Automated LeetCode verification & deposit stake pool for competitive coders.
           </p>
         </div>
 
@@ -54,7 +54,7 @@ export default function Footer({ theme, onToggleTheme, onOpenAdminModal, userRol
 
         {/* Copyright Line */}
         <div className="footer-bottom-line">
-          <span>CodeStake DSA Tracker © {new Date().getFullYear()} • Verified LeetCode GraphQL & Codeforces API</span>
+          <span>CodeStake DSA Tracker © {new Date().getFullYear()} • Verified LeetCode GraphQL API</span>
         </div>
       </div>
     </footer>

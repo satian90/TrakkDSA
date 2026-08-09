@@ -12,6 +12,7 @@ export default function UpiDepositModal({
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [selectedAmount, setSelectedAmount] = useState(500);
 
   if (!isOpen) return null;
 
@@ -32,14 +33,14 @@ export default function UpiDepositModal({
     }
 
     setIsSubmitting(true);
-    await onSubmitUtr(cleanUtr, depositAmount);
+    await onSubmitUtr(cleanUtr, selectedAmount);
     setIsSubmitting(false);
     onClose();
   };
 
   // Generate dynamic QR Code for UPI payment
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-    `upi://pay?pa=${upiId}&pn=CodeStake&am=${depositAmount}&cu=INR`
+    `upi://pay?pa=${upiId}&pn=CodeStake&am=${selectedAmount}&cu=INR`
   )}`;
 
   return (
@@ -48,7 +49,7 @@ export default function UpiDepositModal({
         <div className="modal-header">
           <div className="title-with-icon">
             <QrCode size={22} style={{ color: 'var(--accent-primary)' }} />
-            <h2 style={{ color: 'var(--text-main)' }}>Deposit Collateral (₹{depositAmount})</h2>
+            <h2 style={{ color: 'var(--text-main)' }}>Deposit Collateral</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose} type="button">
             <X size={20} />
@@ -57,8 +58,26 @@ export default function UpiDepositModal({
 
         <form onSubmit={handleSubmit} style={{ background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', margin: 0 }}>
           <div className="modal-body" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+            
+            {/* Amount Selection */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                Select Deposit Amount (₹) 
+              </label>
+              <select 
+                value={selectedAmount}
+                onChange={(e) => setSelectedAmount(Number(e.target.value))}
+                className="form-control"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}
+              >
+                {[50, 100, 150, 200, 250, 300, 350, 400, 450, 500].map(amt => (
+                  <option key={amt} value={amt}>₹{amt}</option>
+                ))}
+              </select>
+            </div>
+
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
-              Scan the UPI QR code below using <strong>GPay, PhonePe, Paytm, or BHIM</strong> to transfer ₹{depositAmount} collateral.
+              Scan the UPI QR code below using <strong>GPay, PhonePe, Paytm, or BHIM</strong> to transfer ₹{selectedAmount} collateral.
             </p>
 
             {/* QR Code Container */}
@@ -68,7 +87,7 @@ export default function UpiDepositModal({
                 alt="CodeStake UPI QR Code"
                 style={{ width: '180px', height: '180px', borderRadius: 'var(--radius-sm)', background: '#ffffff', padding: '8px' }}
               />
-              <span style={{ marginTop: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Scan to Pay ₹{depositAmount} via any UPI App</span>
+              <span style={{ marginTop: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Scan to Pay ₹{selectedAmount} via any UPI App</span>
 
               {/* UPI ID Row */}
               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-card)', padding: '8px 14px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border-subtle)' }}>

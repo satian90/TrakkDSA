@@ -58,7 +58,7 @@ function App() {
   // Sign up Form states
   const [signupUsername, setSignupUsername] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
-  const [signupDeposit, setSignupDeposit] = useState(500);
+
   const [isVerifyingSignup, setIsVerifyingSignup] = useState(false);
   const [signupError, setSignupError] = useState('');
 
@@ -201,6 +201,8 @@ function App() {
         setAuthUser(null);
         setCurrentUser(null);
         setUserRole(null);
+        setLoginError('');
+        setSignupError('');
         setCurrentView('landing');
         if (window.location.pathname !== '/') {
           window.history.replaceState(null, '', '/');
@@ -215,7 +217,8 @@ function App() {
     if (userRole !== 'member' || !loggedInMember || !dailyTask) return;
 
     const autoCheckSubmission = async () => {
-      // Don't poll if today's task is already marked solved
+      // Don't poll if not approved or already marked solved
+      if (loggedInMember.depositStatus !== 'APPROVED') return;
       if (loggedInMember.history[currentDate]?.solved) return;
 
       const result = await verifyDailySubmission(
@@ -356,30 +359,7 @@ function App() {
 
 
 
-  // Apply Miss Penalty
-  const handleApplyPenalty = async (member) => {
-    const fineAmount = dailyTask.penaltyAmount || 50;
-    const newDeposit = Math.max(0, member.depositBalance - fineAmount);
-    const newPenaltiesPaid = (member.penaltiesPaid || 0) + fineAmount;
 
-    showToast(`🔻 Applied ₹${fineAmount} penalty fine to ${member.name} for missing daily task!`, 'danger');
-
-    await updateMember({
-      ...member,
-      depositBalance: newDeposit,
-      penaltiesPaid: newPenaltiesPaid,
-      currentStreak: 0
-    });
-
-    await upsertSubmission(member.id, currentDate, {
-      solved: false,
-      penaltyApplied: true,
-      penaltyAmount: fineAmount,
-      appliedAt: new Date().toISOString()
-    });
-
-    await refreshData();
-  };
 
   // Toggle member block/unblock status (Admin only)
   const handleToggleBlockMember = async (member) => {
@@ -534,7 +514,6 @@ function App() {
     const username = signupUsername.trim();
     const password = signupPassword.trim();
     const platform = 'LeetCode';
-    const depositVal = Number(signupDeposit) || 500;
 
     if (!username || !password) {
       setSignupError('Please enter a platform username and password.');
@@ -579,9 +558,20 @@ function App() {
     });
 
     if (authResult.error) {
-      setSignupError(authResult.error);
-      showToast(authResult.error, 'danger');
-      return;
+      if (authResult.error.toLowerCase().includes('already registered')) {
+        // Attempt to login if they are already in auth.users but their members row was deleted
+        const loginRes = await signIn(email, password);
+        if (loginRes.error) {
+           setSignupError("Account already exists in Auth but password was incorrect. Please sign in.");
+           showToast("Auth mismatch. Try signing in.", 'warning');
+           return;
+        }
+        authResult = loginRes;
+      } else {
+        setSignupError(authResult.error);
+        showToast(authResult.error, 'danger');
+        return;
+      }
     }
 
     // Ensure session is active
@@ -604,9 +594,11 @@ function App() {
       authUid: authUid,
       verifiedBio: true,
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
-      color: platform === 'Codeforces' ? '#ef4444' : '#ffb300',
-      initialDeposit: depositVal,
-      depositBalance: depositVal,
+      color: '#ffb300',
+      initialDeposit: 0,
+      depositBalance: 0,
+      debtBalance: 0,
+      depositStatus: 'PENDING',
       currentStreak: 0,
       totalPoints: 0,
       solvedCount: 0,
@@ -614,7 +606,13 @@ function App() {
       history: {}
     };
 
-    await insertMember(newMember);
+    const insertResult = await insertMember(newMember);
+    if (!insertResult.success) {
+      setSignupError(`Database Insert Error: ${insertResult.error}`);
+      showToast(`Insert failed: ${insertResult.error}`, 'danger');
+      return;
+    }
+
     await refreshData();
 
     // Fetch the inserted member to get the full object
@@ -655,12 +653,11 @@ function App() {
       return;
     }
 
-    // Look up member by auth UID
     const member = await fetchMemberByAuthUid(authResult.user.id);
     if (!member) {
-      const msg = "Account not found. Please sign up first.";
+      const msg = "Hmm, we couldn't find your profile. If you're a new user or your profile was deleted, please click 'Create Account' with these same details to set up your profile!";
       setLoginError(msg);
-      showToast(msg, "danger");
+      showToast(msg, "warning");
       return;
     }
 
@@ -789,7 +786,7 @@ function App() {
               }}>|</span>
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginTop: '10px' }}>
-              Automated daily DSA tracking on LeetCode & Codeforces with deposit penalties.
+              Automated daily DSA tracking on LeetCode with deposit penalties.
             </p>
           </div>
 
@@ -817,7 +814,7 @@ function App() {
                 <h3 style={{ fontWeight: '700', fontSize: '1.2rem' }}>Join the Challenge</h3>
               </div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '16px' }}>
-                Sign up as a new member, verify your LeetCode/Codeforces account profile, deposit collateral, and compete!
+                Sign up as a new member, verify your LeetCode account profile, deposit collateral, and compete!
               </p>
               <button className="btn btn-primary" onClick={() => { setSignupError(''); setCurrentView('signup'); }} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 'auto' }}>
                 <span>Create Account</span>
@@ -957,20 +954,6 @@ function App() {
               />
             </div>
 
-            <div className="form-group">
-              <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block', fontSize: '0.85rem', color: 'var(--text-main)' }}>Stake Deposit Collateral (₹)</label>
-              <input 
-                type="number" 
-                min="100" 
-                value={signupDeposit} 
-                onChange={(e) => setSignupDeposit(e.target.value)}
-                required
-                className="form-control"
-                style={{ width: '100%', padding: '10px 14px' }}
-              />
-              <small style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Staked pool collateral. Deducts ₹50 fine per missed daily problem.</small>
-            </div>
-
             <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setCurrentView('landing')} style={{ flex: 1, justifyContent: 'center', padding: '12px' }}>
                 Cancel
@@ -1040,6 +1023,22 @@ function App() {
       />
 
       <main className="main-content" style={{ flex: 1 }}>
+        {/* Pending Deposit Banner */}
+        {userRole === 'member' && loggedInMember?.depositStatus !== 'APPROVED' && (
+          <div style={{ background: 'var(--bg-card-subtle)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <AlertCircle className="text-orange" size={24} />
+              <div>
+                <h4 style={{ fontWeight: '600', margin: '0 0 4px 0', color: 'var(--text-main)' }}>Account Pending Activation</h4>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>Deposit collateral to start competing, earn points, and appear on the ranked leaderboard.</p>
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={() => setIsUpiModalOpen(true)} style={{ whiteSpace: 'nowrap' }}>
+              Deposit Now
+            </button>
+          </div>
+        )}
+
         {/* Daily Assigned Problem Card */}
         <DailyChallengeCard 
           dailyTask={dailyTask}
@@ -1058,7 +1057,6 @@ function App() {
           currentDate={currentDate}
           onVerifyMember={handleVerifyMember}
           onToggleManualSolved={handleToggleManualSolved}
-          onApplyPenalty={handleApplyPenalty}
           onToggleBlockMember={handleToggleBlockMember}
           onApprovePayment={handleApprovePayment}
           onRejectPayment={handleRejectPayment}

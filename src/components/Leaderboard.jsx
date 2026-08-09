@@ -9,7 +9,6 @@ export default function Leaderboard({
   currentDate, 
   onVerifyMember, 
   onToggleManualSolved,
-  onApplyPenalty,
   onToggleBlockMember,
   onApprovePayment,
   onRejectPayment,
@@ -25,11 +24,13 @@ export default function Leaderboard({
   const pendingPayments = members.filter(m => m.depositStatus === 'PENDING' || (m.utrNumber && m.depositStatus !== 'APPROVED'));
   const pendingPaymentsCount = pendingPayments.length;
 
-  // Sort members by totalPoints descending, then currentStreak descending
-  const sortedMembers = [...members].sort((a, b) => {
-    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-    return b.currentStreak - a.currentStreak;
-  });
+  // Sort only APPROVED members by totalPoints descending, then currentStreak descending
+  const sortedMembers = members
+    .filter(m => m.depositStatus === 'APPROVED')
+    .sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      return b.currentStreak - a.currentStreak;
+    });
 
   const handleVerifyClick = async (member) => {
     setLoadingId(member.id);
@@ -79,7 +80,7 @@ export default function Leaderboard({
           )}
         </div>
 
-        {userRole !== 'admin' && onOpenDepositModal && (
+        {userRole !== 'admin' && currentUser?.depositStatus === 'APPROVED' && onOpenDepositModal && (
           <button 
             className="btn btn-sm btn-primary"
             onClick={onOpenDepositModal}
@@ -162,7 +163,7 @@ export default function Leaderboard({
 
                       <td>
                         <a 
-                          href={member.platform === 'Codeforces' ? `https://codeforces.com/profile/${member.leetcodeUsername}` : `https://leetcode.com/${member.leetcodeUsername}/`} 
+                          href={`https://leetcode.com/${member.leetcodeUsername}/`} 
                           target="_blank" 
                           rel="noopener noreferrer" 
                           className="leetcode-handle-link"
@@ -173,11 +174,10 @@ export default function Leaderboard({
                             fontSize: '0.7rem', 
                             padding: '2px 6px', 
                             borderRadius: '4px', 
-                            background: member.platform === 'Codeforces' ? '#fee2e2' : '#fef3c7', 
-                            color: member.platform === 'Codeforces' ? '#ef4444' : '#d97706', 
-                            fontWeight: '800' 
+                            background: '#fef3c7', 
+                            color: '#d97706', 
                           }}>
-                            {member.platform === 'Codeforces' ? 'CF' : 'LC'}
+                            LC
                           </span>
                           @{member.leetcodeUsername} <ExternalLink size={11} />
                         </a>
