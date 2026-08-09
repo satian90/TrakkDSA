@@ -178,21 +178,37 @@ function App() {
     }
 
     if (window.location.pathname !== targetPath) {
-      window.history.pushState(null, '', targetPath);
+      window.history.replaceState(null, '', targetPath);
     }
   }, [currentView, isAdminModalOpen]);
 
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = async () => {
       const path = window.location.pathname.toLowerCase();
-      if (path === '/admin') {
-        setIsAdminModalOpen(true);
+
+      // Always check for a valid session before restoring protected views
+      const { session } = await getSession();
+
+      if (path === '/dashboard') {
+        if (session) {
+          setIsAdminModalOpen(false);
+          setCurrentView('dashboard');
+        } else {
+          // No valid session — force back to landing
+          setCurrentUser(null);
+          setUserRole(null);
+          setCurrentView('landing');
+          window.history.replaceState(null, '', '/');
+        }
+      } else if (path === '/admin') {
+        if (session) {
+          setIsAdminModalOpen(true);
+        } else {
+          setIsAdminModalOpen(true);
+        }
       } else if (path === '/signup') {
         setIsAdminModalOpen(false);
         setCurrentView('signup');
-      } else if (path === '/dashboard') {
-        setIsAdminModalOpen(false);
-        setCurrentView('dashboard');
       } else {
         setIsAdminModalOpen(false);
         setCurrentView('landing');
