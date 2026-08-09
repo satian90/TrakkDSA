@@ -102,40 +102,94 @@ function App() {
     setDailyTask(taskData);
   }, []);
 
+  // Toggle manual solved status for a member
+  const handleToggleManualSolved = useCallback(async (member) => {
+    if (!dailyTask) return;
+    const dayLog = member.history?.[currentDate] || {};
+    const currentlySolved = !!dayLog.solved;
+
+    let newStreak = member.currentStreak;
+    let newPoints = member.totalPoints;
+    let newSolvedCount = member.solvedCount;
+
+    if (!currentlySolved) {
+      newStreak += 1;
+      newPoints += (dailyTask.pointsValue || 10);
+      newSolvedCount += 1;
+      showToast(`🎉 ${member.name} completed '${dailyTask.title}'! +${dailyTask.pointsValue || 10} pts`, 'success');
+    } else {
+      newStreak = Math.max(0, newStreak - 1);
+      newPoints = Math.max(0, newPoints - (dailyTask.pointsValue || 10));
+      newSolvedCount = Math.max(0, newSolvedCount - 1);
+      showToast(`Marked ${member.name} as pending.`, 'info');
+    }
+
+    // Update the member stats
+    await updateMember({
+      ...member,
+      currentStreak: newStreak,
+      totalPoints: newPoints,
+      solvedCount: newSolvedCount
+    });
+
+    // Upsert the submission record
+    await upsertSubmission(member.id, currentDate, {
+      solved: !currentlySolved,
+      titleSlug: dailyTask.titleSlug,
+      verifiedAt: !currentlySolved ? new Date().toISOString() : null,
+      penaltyApplied: false
+    });
+
+    await refreshData();
+  }, [currentDate, dailyTask, refreshData]);
+
   // Initial data load + Supabase Auth session check
   useEffect(() => {
     const load = async () => {
-      setIsLoading(true);
-      await refreshData();
+      try {
+        setIsLoading(true);
+        await refreshData();
 
-      // Check for existing Supabase Auth session
-      const { session, user } = await getSession();
-      if (session && user) {
-        setAuthUser(user);
-        if (checkIsAdmin(user)) {
-          setUserRole('admin');
-          setCurrentView('dashboard');
-        } else {
-          // Look up member by auth UID
-          const member = await fetchMemberByAuthUid(user.id);
-          if (member) {
-            if (member.isBlocked) {
+        // Check for existing Supabase Auth session
+        const { session, user } = await getSession();
+        if (session && user) {
+          setAuthUser(user);
+          if (checkIsAdmin(user)) {
+            setUserRole('admin');
+            setCurrentView('dashboard');
+          } else {
+            // Look up member by auth UID
+            const member = await fetchMemberByAuthUid(user.id);
+            if (member) {
+              if (member.isBlocked) {
+                await signOut();
+                setAuthUser(null);
+                setCurrentUser(null);
+                setUserRole(null);
+                setCurrentView('landing');
+                window.history.replaceState(null, '', '/');
+                showToast("You are blocked. Please contact admin.", "danger");
+              } else {
+                setCurrentUser(member);
+                setUserRole('member');
+                setCurrentView('dashboard');
+              }
+            } else {
+              // Stale session detected (member deleted from DB)
               await signOut();
               setAuthUser(null);
               setCurrentUser(null);
               setUserRole(null);
               setCurrentView('landing');
-              showToast("You are blocked. Please contact admin.", "danger");
-            } else {
-              setCurrentUser(member);
-              setUserRole('member');
-              setCurrentView('dashboard');
+              window.history.replaceState(null, '', '/');
             }
           }
         }
+      } catch (err) {
+        console.error("Initial load error:", err);
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
     load();
   }, [refreshData]);
@@ -300,45 +354,7 @@ function App() {
     showToast(`Updated today's task to '${task.title}' on ${task.platform}!`, 'info');
   };
 
-  // Toggle manual solved status for a member
-  const handleToggleManualSolved = useCallback(async (member) => {
-    const dayLog = member.history[currentDate] || {};
-    const currentlySolved = !!dayLog.solved;
 
-    let newStreak = member.currentStreak;
-    let newPoints = member.totalPoints;
-    let newSolvedCount = member.solvedCount;
-
-    if (!currentlySolved) {
-      newStreak += 1;
-      newPoints += (dailyTask.pointsValue || 10);
-      newSolvedCount += 1;
-      showToast(`🎉 ${member.name} completed '${dailyTask.title}'! +${dailyTask.pointsValue || 10} pts`, 'success');
-    } else {
-      newStreak = Math.max(0, newStreak - 1);
-      newPoints = Math.max(0, newPoints - (dailyTask.pointsValue || 10));
-      newSolvedCount = Math.max(0, newSolvedCount - 1);
-      showToast(`Marked ${member.name} as pending.`, 'info');
-    }
-
-    // Update the member stats
-    await updateMember({
-      ...member,
-      currentStreak: newStreak,
-      totalPoints: newPoints,
-      solvedCount: newSolvedCount
-    });
-
-    // Upsert the submission record
-    await upsertSubmission(member.id, currentDate, {
-      solved: !currentlySolved,
-      titleSlug: dailyTask.titleSlug,
-      verifiedAt: !currentlySolved ? new Date().toISOString() : null,
-      penaltyApplied: false
-    });
-
-    await refreshData();
-  }, [currentDate, dailyTask, refreshData]);
 
   // Apply Miss Penalty
   const handleApplyPenalty = async (member) => {

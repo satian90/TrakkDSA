@@ -11,6 +11,7 @@ export default function DailyChallengeCard({
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
+    if (!dailyTask) return;
     const updateCountdown = () => {
       const now = new Date();
       const endOfDay = new Date();
@@ -32,9 +33,11 @@ export default function DailyChallengeCard({
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [dailyTask]);
 
-  const solvedCount = members.filter(m => m.history[dailyTask.dateAssigned]?.solved).length;
+  if (!dailyTask) return null;
+
+  const solvedCount = (members || []).filter(m => m.history?.[dailyTask.dateAssigned]?.solved).length;
   const totalCount = members.length;
   const completionPercentage = totalCount > 0 ? Math.round((solvedCount / totalCount) * 100) : 0;
 

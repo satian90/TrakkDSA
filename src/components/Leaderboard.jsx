@@ -117,7 +117,7 @@ export default function Leaderboard({
                 </tr>
               ) : (
                 sortedMembers.map((member, index) => {
-                  const dayLog = member.history[currentDate] || {};
+                  const dayLog = member.history?.[currentDate] || {};
                   const isSolved = dayLog.solved;
                   const isFined = dayLog.penaltyApplied;
                   const isLoading = loadingId === member.id;
