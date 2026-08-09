@@ -46,7 +46,7 @@ export default function UpiDepositModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', background: 'var(--bg-card)' }}>
-        <div className="modal-header">
+        <div className="modal-header" style={{ flexShrink: 0 }}>
           <div className="title-with-icon">
             <QrCode size={22} style={{ color: 'var(--accent-primary)' }} />
             <h2 style={{ color: 'var(--text-main)' }}>Deposit Collateral</h2>
@@ -56,8 +56,8 @@ export default function UpiDepositModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', margin: 0 }}>
-          <div className="modal-body" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+        <form onSubmit={handleSubmit} style={{ background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, margin: 0 }}>
+          <div className="modal-body" style={{ background: 'var(--bg-card)', color: 'var(--text-main)', flex: 1, overflowY: 'auto' }}>
             
             {/* Amount Selection */}
             <div className="form-group" style={{ marginBottom: '16px' }}>
