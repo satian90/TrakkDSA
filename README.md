@@ -1,5 +1,7 @@
 # CodeStake
+## Live Demo
 
+[Visit CodeStake](https://codestake-one.vercel.app/)
 CodeStake is a private competitive programming tracker designed for small groups of friends. It automatically tracks daily LeetCode submissions, penalizes missed days by deducting from a deposit, and redistributes the penalty pot to the most consistent members at the end of a sprint.
 
 ## Features
